@@ -123,6 +123,10 @@ install the pinned dependencies from `uv.lock`. After that, run commands from th
 folder with `uv run ...`, or activate the environment manually with `source .venv/bin
 activate`.
 
+For scATAC-seq with `snapATAC2` we require a Rust compiler, or the package is available for your system as a precompiled binary. If a binary is available, `uv` will take care of it and you just run `uv sync` in the ATAC-directory. If this fails, try independently with `uv pip install snapatac2`. Ultimately, download and install a Rust compiler:
+`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+and try again. 
+
 `04_cite_seq_application` and of course `XX_exam_data` require extra data that cannot be loaded like the tutorial data. If you are not using Dokcer, you may download under the following link:
 https://heibox.uni-heidelberg.de/d/dcb5d295521b47108715/
 
