@@ -32,3 +32,19 @@ day3/03_cite_seq/notebooks/models/
 *.nbconvert.ipynb
 *.nbconvert.html
 *-preview.html
+
+# Python environments
+.venv/
+**/.venv/
+
+# Python/Jupyter caches
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# Large generated data/results
+*.h5mu
+*.h5ad
+*.h5
+*.rda
+*.rds
