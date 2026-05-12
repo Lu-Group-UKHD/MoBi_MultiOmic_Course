@@ -1,0 +1,31 @@
+[project]
+name = "02-batch-integration"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9.21"
+dependencies = [
+    "biocutils>=0.4.0",
+    "cellxgene-census>=1.13.1",
+    "delayedarray>=0.6.2",
+    "dolomite-base>=0.5.1",
+    "dolomite-sce>=0.3.0",
+    "harmonypy>=2.0.0",
+    "hdf5array>=0.5.0",
+    "ipykernel>=6.31.0",
+    "ipywidgets>=8.1.8",
+    "jupyterlab>=4.5.7",
+    "mopsy>=0.2.7",
+    "nbconvert>=7.17.1",
+    "numpy>=2.0.2",
+    "pandas>=2.3.3",
+    "papermill>=2.6.0",
+    "scanorama>=1.7.4",
+    "scanpy>=1.10.3",
+    "scranpy>=0.3.0",
+    "scrnaseq>=0.3.1",
+    "scvi-tools>=1.1.2",
+    "setuptools<82",
+    "singlecellexperiment>=0.6.2",
+    "tiledbarray>=0.2.0",
+]

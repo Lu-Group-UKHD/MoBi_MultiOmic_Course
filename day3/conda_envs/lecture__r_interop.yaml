@@ -1,0 +1,96 @@
+name: lecture__r_interop
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - conda-forge::python=3.13
+  - conda-forge::ipykernel=7.1.0
+  - conda-forge::jupyterlab=4.5.1
+  - conda-forge::ipywidgets
+  - conda-forge::nbconvert
+  - conda-forge::scanpy=1.11.5
+  - bioconda::anndata2ri=2.0
+  - bioconda::bioconductor-singlecellexperiment=1.28.0
+  - bioconda::bioconductor-limma
+  - bioconda::bioconductor-edger
+  - bioconda::bioconductor-deseq2
+  - bioconda::bioconductor-airway
+  - igraph=1.0.1
+  - pip=25.3
+  - python-igraph=1.0.0
+  - conda-forge::r-base=4.4.3
+  - r-sessioninfo=1.2.3
+  - r-seurat=5.4.0
+  - r-spatstat=3.5_0
+  - conda-forge::r-readr
+  - rpy2=3.6.4
+  - scikit-learn=1.8.0
+  - scikit-misc=0.5.2
+  - session-info=1.0.0
+  # - scirpy
+  - cmake
+
+  - anndata >=0.11
+  - mudata
+  - muon
+  # Common deps useful for Palantir / MAGIC-style workflows
+  - networkx
+  - tqdm
+  - natsort
+
+  # PyDESeq2 and formula handling
+  - formulaic
+  - formulaic-contrasts
+
+  # BiocPy release environment pieces
+  - cmake
+  - openssl
+  - hdf5
+  - pyarrow
+  - pybind11
+  - rich
+  - python-dateutil
+  - session-info
+  # - delayedarray[dask]>=0.5.0
+  - tiledb
+
+  - pip:
+      # Palantir from GitHub
+      # - git+https://github.com/dpeerlab/Palantir
+
+      # BiocPy packages from release.yml
+      - biocframe>=0.5.0
+      - summarizedexperiment>=0.5.3
+      - singlecellexperiment>=0.5.3
+      - multiassayexperiment>=0.5.0
+      - genomicranges
+      - iranges
+      - biocutils
+      - rds2py>=0.6.1
+      - pybiocfilecache
+      - mopsy
+      - delayedarray
+      - hdf5array
+      - tiledbarray
+      - scranpy
+      - singler
+      - scrnaseq
+      - celldex
+      - dolomite
+      - dolomite-base>=0.4.2
+      - dolomite-matrix>=0.2.1
+      - dolomite-ranges>=0.1.1
+      - dolomite-se>=0.3.0
+      - dolomite-sce>=0.3.0
+      - dolomite-mae>=0.2.0
+      - cellarr
+      - harmonypy
+      - scanorama
+
+      - plotnine
+
+      # Requested analysis packages
+      - pydeseq2  
+      - "decoupler @ git+https://github.com/scverse/decoupler.git@main"
+      - "bioc2ri @ git+https://github.com/MaximilianNuber/bioc2ri.git@main"
+      - "deferential_expression @ git+https://github.com/MaximilianNuber/deferential_expression.git@main"

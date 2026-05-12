@@ -1,0 +1,43 @@
+---
+title: "Pre-course assignments to use Python and R"
+author: 
+  - Maximilian Nuber
+  - Junyan Lu
+format: 
+  html: 
+    page-layout: full
+    code-fold: false        # fold all executable code blocks
+    code-summary: "Show code"   # text on the disclosure widget (optional)
+    code-tools: true       # optional: global "Show/Hide All Code" menu
+    toc: true
+    number-sections: true
+    number-depth: 3
+    theme: book.scss
+    embed-resources: true
+execute:
+  echo: true               # code is present, so it can be folded
+  warning: false           # still suppress warnings
+  message: false           # suppress messages
+---
+
+# A Multi-Lingual Approach to Multi-Omics
+
+In the rapidly evolving landscape of single-cell genomics, the "best" tool is often defined by the task at hand rather than a single programming language. While your previous lectures have established a strong foundation in R—utilizing the robust Bioconductor ecosystem for statistical analysis and tools like MOFA—the state of the art in multi-omics integration frequently leans on Python-based deep learning frameworks like scVI. To reflect this reality, this course adopts a pragmatic, dual-language approach. The following chapters are designed to bridge the gap between these environments, allowing you to build upon your existing R expertise while gaining the fluency needed to navigate Python when the biology demands it. Whether you choose to work primarily in R or Python for your daily tasks, our goal is to empower you to treat these languages as complementary tools, ensuring you can always reach for the most effective method for your data.
+
+# A note on `conda` vs. Docker + `uv`
+
+Conda is a mini operating system in a folder: it manages not just Python packages but also system-level dependencies — compiled C libraries, 
+OpenSSL, HDF5, even R — all isolated from your host machine. This makes it powerful but heavy, and environment 
+solves can be slow and brittle as dependency trees grow. The Docker + uv approach divides these responsibilities 
+more cleanly between two purpose-built tools. Docker provides the system layer: 
+the base image (e.g., a Bioconductor image) ships with R, Bioconductor packages, and all compiled system dependencies pre-installed 
+and version-locked at the OS level. 
+Within that container, uv handles everything Python: it resolves and installs packages at high speed, pins the full dependency graph in a uv.lock file 
+for exact reproducibility, and manages virtual environments without ever touching system paths. 
+The result is a cleaner separation of concerns — Docker owns the system, uv owns Python — and both layers are independently reproducible and auditable.
+
+{{< embed conda_python_setup.ipynb echo=true >}}
+
+{{< embed prepare_python_uv_project.ipynb echo=true >}}
+
+{{< embed R_interoperability.ipynb echo=true >}}
