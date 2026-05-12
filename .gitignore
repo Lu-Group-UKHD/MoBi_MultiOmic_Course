@@ -1,1 +1,50 @@
 .DS_Store
+
+# Day 3 local Python environments
+.venv/
+**/.venv/
+
+# Python/Jupyter caches
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# Large generated data/results
+*.h5mu
+*.h5ad
+*.h5
+*.rda
+*.rds
+
+# Raw/private data
+day3/04_cite_seq_application/data/GSE185381_RAW/
+day3/04_cite_seq_application/data/*artifactdb/
+
+# Generated CITE-seq outputs/models
+day3/03_cite_seq/results/
+day3/03_cite_seq/notebooks/results/
+day3/03_cite_seq/models/
+day3/03_cite_seq/notebooks/models/
+
+# Quarto/Jupyter generated support dirs
+*_files/
+*.out.ipynb
+*.nbconvert.ipynb
+*.nbconvert.html
+*-preview.html
+
+# Python environments
+.venv/
+**/.venv/
+
+# Python/Jupyter caches
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# Large generated data/results
+*.h5mu
+*.h5ad
+*.h5
+*.rda
+*.rds

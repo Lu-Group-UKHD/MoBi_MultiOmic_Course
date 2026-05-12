@@ -1,0 +1,283 @@
+---
+title: Single-Cell Processing
+author:
+  - Maximilian Nuber
+  - Junyan Lu
+format:
+  html:
+    page-layout: full
+    code-fold: false
+    code-summary: Show code
+    code-tools: true
+    toc: true
+    number-sections: true
+    number-depth: 3
+    theme: book.scss
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+
+
+
+At this point, you will have heard the basic steps of single cell processing in the lecture:
+
+1. Normalization
+2. Calculating highly variable genes
+3. Dimensionality Reduction (DR)
+4. UMAP for visualization (based on DR)
+5. Clustering (based on DR)
+6. Marker Detection
+
+We will first use the **Bioconductor** suite of packages for processing a single cell dataset.
+
+We want to run this code in a dedicated environment. You should have `SingleCellExperiment`, `scater`, `scran`, and `TENxPBMCData` installed via BiocManager.
+
+```{r}
+#| vscode: {languageId: r}
+# First we import required packages:
+
+suppressMessages({
+    library(SingleCellExperiment)
+    library(scater)
+    library(scran)
+    library(TENxPBMCData)
+    library(igraph)
+    library(ggplot2)
+    library(patchwork)
+})
+```
+
+
+
+1. Preparing the Data for Comparison
+
+Before we can identify cell types or find marker genes, we have to account for the fact that some cells simply capture more RNA than others due to technical noise (sequencing depth).
+
+```{r}
+#| vscode: {languageId: r}
+# We load a dataset from the TENxPBMCData package, just some blood cells from a healthy donor:
+
+sce <- TENxPBMCData(dataset = "pbmc3k")
+# Ensure unique row names (using Symbols)
+rownames(sce) <- uniquifyFeatureNames(rowData(sce)$ENSEMBL_ID, rowData(sce)$Symbol)
+
+# The basic normalization in Bioconductor is often done via library size factors:
+sce <- logNormCounts(sce)
+```
+
+
+
+Why are we doing this?
+
+- Normalization (logNormCounts): In a single-cell experiment, one cell might have 5,000 detected transcripts while another has 15,000. If we don't normalize, the second cell will look like it has "more" of every gene simply because it was sequenced deeper. This step scales every cell by its total count, allowing for an "apples-to-apples" comparison.
+
+- Log Transformation: Gene expression data is often "skewed"—a few highly expressed genes can have counts in the thousands, while most have counts of 1 or 2.
+
+- The log transform squashes this scale so that a change from 10 to 100 counts is weighted similarly to a change from 1,000 to 10,000.
+
+- We use log2​(x+1) because we cannot take the log of zero (and single-cell data has a lot of zeros).
+
+The Bottom Line: These steps ensure that the differences we see later are driven by biology (cell type differences) rather than technology (how well the sequencer ran that day).
+
+
+2. Identifying Biological "Signal"
+
+Now that the data is normalized, we need to decide which genes are actually worth looking at and simplify the data so we can eventually group (cluster) the cells.
+
+```{r}
+#| vscode: {languageId: r}
+# 1. Identify the top 2,000 "Highly Variable Genes" (HVGs)
+# These are genes that vary significantly across different cells, 
+# suggesting they are biological markers rather than just noise.
+dec <- modelGeneVar(sce)
+hvg <- getTopHVGs(dec, n=2000)
+
+# 2. Run Principal Component Analysis (PCA)
+# This compresses the 2,000 genes into 50 "Principal Components" (meta-genes).
+# It captures the most important patterns while ignoring random technical variation.
+set.seed(123)
+sce <- runPCA(sce, subset_row=hvg, ncomponents=50)
+```
+
+
+
+Why are we doing this?
+
+- Highly Variable Genes (modelGeneVar): If a gene is expressed at exactly the same level in every single cell, it doesn't help us distinguish a T-cell from a B-cell.
+
+- We filter for genes that show high variance (high "peaks" and low "valleys" across the dataset). By focusing on the top 2,000 genes, we strip away thousands of uninformative data points, making the analysis much faster and cleaner.
+
+- PCA (runPCA): Even with 2,000 genes, the data is too "big" to visualize or cluster easily.
+
+- PCA is a mathematical trick that creates Principal Components (PCs). You can think of a PC as a "meta-gene" that represents a group of genes that usually go up or down together.
+
+- Instead of looking at 2,000 separate dimensions, we look at the top 50 PCs which usually contain almost all the biological information we need.
+
+The Bottom Line: We are throwing away the "background noise" (genes that don't change) and then summarizing the remaining "signal" into a manageable format for the computer to process.
+
+
+3. Determining the "Elbow" (Selecting PCs)
+
+Before moving to clustering, we look at how much information (variance) each Principal Component contributes. We want to keep the PCs that explain a lot and discard the ones that contribute very little.
+
+```{r}
+#| vscode: {languageId: r}
+#| fig-width: 8
+#| fig-height: 6
+# 1. Visualize the variance explained by the PCs
+# This generates an "Elbow Plot" to show the importance of each PC.
+# Set plot size to 10x6 inches
+# options(repr.plot.width = 8, repr.plot.height = 6)
+percent.var <- attr(reducedDim(sce, "PCA"), "percentVar")
+plot(percent.var, xlab="PC", ylab="Variance explained (%)", type="b", log="y")
+
+# 2. Downstream, we will use the first 30 PCs.
+# These 30 components capture the vast majority of the biological 
+# "story" while leaving out technical noise.
+```
+
+
+
+Why are we doing this?
+
+- The Law of Diminishing Returns: PC1 explains the most variation (e.g., the difference between a lymphocyte and a myeloid cell). PC2 explains the next most, and so on.
+
+- By the time you get to PC40 or PC50, the "information" they add is usually just random technical noise or very minor batch effects.
+
+- The "Elbow" Method: Biologists look at this plot for a "bend" or "elbow." The point where the curve starts to flatten out is where the computer has run out of major biological patterns to find.
+
+- Why 30? Choosing 30 is a common "safe" middle ground for PBMC data. It’s enough to capture subtle cell subtypes (like different flavors of T-cells) without including so many PCs that the analysis becomes "muddy" with noise.
+
+The Bottom Line: We are narrowing our focus from 2,000 genes to 30 "patterns." This makes the next step—grouping cells into clusters—much more accurate and computationally efficient.
+
+
+4. Mapping the Cellular Landscape
+
+Now that we have our 30 Principal Components, we use them to figure out which cells are "neighbors" and group them into distinct clusters (communities).
+
+```{r}
+#| vscode: {languageId: r}
+#| fig-width: 8
+#| fig-height: 8
+# 1. Build a neighborhood graph
+# For every cell, find its 30 nearest "friends" based on similarity.
+set.seed(123)
+g <- buildSNNGraph(sce, k=30, d=30)
+
+# 2. Calculate UMAP (Uniform Manifold Approximation and Projection)
+# This flattens the complex multidimensional data into a 2D map for our eyes.
+sce <- runUMAP(sce, dimred="PCA", n_neighbors=30)
+
+# 3. Cluster the cells using the "Leiden" algorithm
+# This identifies communities of cells that are highly connected to each other.
+# 'resolution_parameter' controls how granular the clusters are.
+clust <- cluster_leiden(g, resolution_parameter = 0.5)
+colLabels(sce) <- factor(clust$membership)
+
+# 4. Plot the results
+# Visualize the UMAP and color the cells by their Leiden cluster identity.
+# options(repr.plot.width = 8, repr.plot.height = 8)
+p_clusters <- plotUMAP(sce, colour_by="label", text_by="label", text_size = 10) + 
+    labs(title="UMAP of PBMCs colored by Leiden Clusters",
+         x="UMAP 1",
+         y="UMAP 2") +
+    theme(
+        plot.title = element_text(hjust = 0.5, size=25),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=15),
+    )
+p_clusters
+```
+
+
+
+Why are we doing this?
+
+- Nearest Neighbors (buildSNNGraph): Imagine a social network. This step looks at our 30 "meta-genes" and decides which cells are most similar to each other. It builds a web (a graph) where lines connect cells that share a similar profile.
+
+- UMAP (runUMAP): High-dimensional data is impossible for humans to visualize. UMAP is a sophisticated "map-maker" that takes that complex web of connections and lays it out on a 2-D plot. It tries to keep similar cells close together and different cells far apart.
+
+- Leiden Clustering (cluster_leiden): While UMAP shows us the groups, Leiden is what actually labels them. It treats the neighbors graph like a city and looks for neighborhoods.
+
+- Resolution: This is the "zoom" level. A low resolution might group all T-cells together, while a higher resolution might split them into CD4+ and CD8+ subtypes.
+
+The Bottom Line: We’ve gone from a raw count matrix to a biological map. Each colorful "blob" on your UMAP now represents a group of cells that share a similar transcriptional program—likely representing specific cell types like B-cells, T-cells, or Monocytes.
+
+
+Or we use the normalization made canonical by Bioconductor (deconvolution):
+
+```{r}
+#| eval: false
+#| vscode: {languageId: r}
+sce <- TENxPBMCData(dataset = "pbmc3k")
+rownames(sce) <- uniquifyFeatureNames(rowData(sce)$ENSEMBL, rowData(sce)$Symbol)
+
+# Scran's deconvolution normalization:
+set.seed(123)
+pre_clusters <- quickCluster(sce)
+sce <- computeSumFactors(sce, clusters=pre_clusters)
+sce <- logNormCounts(sce)
+
+dec <- modelGeneVar(sce)
+hvg <- getTopHVGs(dec, n=2000)
+sce <- runPCA(sce, subset_row=hvg, ncomponents=50)
+g <- buildSNNGraph(sce, k=30, use.dims=30)
+sce <- runUMAP(sce, dimred="PCA", n_neighbors=30)
+clust <- cluster_leiden(g, resolution_parameter = 0.5)
+colLabels(sce) <- factor(clust$membership)
+plotUMAP(sce, colour_by="label", text_by="label")
+```
+
+
+
+5. Identifying Marker Genes (Cell Type Annotation)
+
+To figure out what these clusters actually are, we ask the computer: "Which genes are significantly higher in Cluster X than in the rest of the dataset?"
+
+```{r}
+#| vscode: {languageId: r}
+#| fig-width: 20
+#| fig-height: 20
+
+# 1. Statistical test to find markers for each cluster
+# scoreMarkers calculates AUCs, Cohen's D, and Log-fold changes.
+markers <- scoreMarkers(sce, colLabels(sce))
+
+# 2. Visualize the markers
+# Let's look at the top markers for the first cluster
+c1_markers <- markers[["1"]]
+c1_ordered <- c1_markers[order(c1_markers$median.AUC, decreasing=TRUE), ]
+head(c1_ordered[, 1:4])
+
+# 3. Validation: Plot known canonical markers on the UMAP
+# Let's check for T cells (CD3E), B cells (CD79A), and Monocytes (LYZ).
+# options(repr.plot.width = 20, repr.plot.height = 20)
+p_clusters + 
+    plotUMAP(sce, colour_by="CD3E", order_by="CD3E") +
+    plotUMAP(sce, colour_by="CD79A", order_by="CD79A") + 
+    plotUMAP(sce, colour_by="LYZ", order_by="LYZ") &
+    theme(
+        plot.title = element_text(hjust = 0.5, size=25),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=15)
+    )
+```
+
+
+
+
+Why are we doing this?
+
+- Ranking Genes (scoreMarkers): This performs comparisons between clusters. If CD3E has a high AUC for Cluster 1, and you know CD3 is a T-cell marker, you’ve just identified your T-cell population.
+
+- AUC (Area Under the Curve): In Bioconductor, we often look at AUC. An AUC of 1.0 means the gene is perfectly diagnostic of that cluster.
+
+- Ground Truthing: Even if the computer suggests markers, biologists usually have a "shortlist" of favorite genes they trust. Plotting these known markers directly onto the UMAP allows you to confirm that the clusters make biological sense.
+
+The Bottom Line: We use statistics to find "unbiased" markers, then use our "biased" biological knowledge to assign real names (like "Cytotoxic T-cell" or "Mature B-cell") to the numerical clusters.
+
+

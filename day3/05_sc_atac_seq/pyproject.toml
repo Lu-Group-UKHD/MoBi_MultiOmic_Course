@@ -1,0 +1,19 @@
+[project]
+name = "05-sc-atac-seq"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "biocutils>=0.4.0",
+    "ipykernel>=7.2.0",
+    "jupyterlab>=4.5.7",
+    "kaleido>=1.3.0",
+    "numpy>=2.4.4",
+    "pandas>=2.3.3",
+    "polars>=1.40.1",
+    "scanpy>=1.12.1",
+    "scikit-misc>=0.5.2",
+    "singlecellexperiment>=0.6.2",
+    "snapatac2>=2.8",
+]
