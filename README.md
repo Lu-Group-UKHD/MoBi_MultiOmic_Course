@@ -95,6 +95,7 @@ install.packages(c(
   "knitr",
   "ggpubr",
   "UpSetR",
+  "psych",
   "survival",
   "survminer",
   "pheatmap",
