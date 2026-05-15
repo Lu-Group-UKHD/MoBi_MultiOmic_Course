@@ -1,0 +1,1442 @@
+---
+title: "Day 1 Practical: Exploring Single-Omics Data Before Multi-Omics Integration"
+subtitle: "Integrative Multi-Omic Data Analysis for Biological and Biomedical Data"
+author: "Dr. Junyan Lu and teaching team"
+date: "May 2026"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: true
+  message: false
+  warning: false
+editor: visual
+---
+
+# Learning goals
+
+In this practical, we will work with four omics data tables and one metadata table from a chronic lymphocytic leukemia (CLL) multi-omics cohort. The goal is to understand each data type separately and prepare for the hands-on with Multi-Omic Factor Analysis (MOFA) on Day 2.
+
+By the end of this practical, you should be able to:
+
+- load tabular omics data in R;
+- distinguish **features**, **samples**, and **metadata**;
+- perform basic quality control for different omics data types;
+- understand why normalization, transformation, filtering, and scaling matter;
+- perform exploratory analysis with PCA;
+- run a simple canonical correlation analysis (CCA) between two omics layers;
+- identify possible biological and technical sources of variation;
+- prepare cleaned data matrices for multi-omics integration with MOFA.
+
+# Dataset overview
+
+The practical uses five files:
+
+| File | Content | Format |
+|------------------------|------------------------|------------------------|
+| `RNAseq_count.tsv` | RNA-seq count matrix | features x samples |
+| `Methylation_Mvalues.tsv` | DNA methylation M-values | features x samples |
+| `Genetics_mutationStatus.tsv` | mutation status matrix | features x samples |
+| `drugScreen.tsv` | ex vivo drug response measurements | long table |
+| `metadata.tsv` | sample-level information | samples x metadata variables |
+
+The four molecular/functional data types are:
+
+1.  **RNA-seq counts**: integer counts per gene and sample.
+2.  **DNA methylation M-values**: continuous methylation values per CpG site and sample.
+3.  **Somatic mutation status**: binary values, usually 0 = no mutation and 1 = mutation.
+4.  **Drug response**: viability measurements for each sample, drug, and concentration.
+
+::: callout-note
+## Teaching note
+
+The matrix-like omics tables contain feature identifiers in the first column, for example Ensembl gene IDs, CpG probe IDs, or mutation/CNA event names. In this practical, we explicitly move this first column into the row names before converting the data to numeric matrices. This is an important habit: always preserve feature identifiers, because they are needed for interpretation, annotation, pathway analysis, and reporting.
+:::
+
+# Setup
+
+## Load packages
+
+
+Setup global environment for Quarto
+
+```{r}
+#| label: setup
+#| echo: false
+knitr::opts_chunk$set(
+  cache = TRUE,
+  autodep = TRUE,
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+Check the availability of the packages.
+
+```{r}
+#| label: packages
+packages <- c(
+  "data.table",
+  "tidyverse",
+  "matrixStats",
+  "knitr",
+  "DESeq2",
+  "UpSetR",
+  "SummarizedExperiment"
+)
+
+missing_packages <- packages[!vapply(packages, requireNamespace, logical(1), quietly = TRUE)]
+
+if (length(missing_packages) > 0) {
+  message("The following packages are missing: ", paste(missing_packages, collapse = ", "))
+  message("Install them before running the practical. CRAN packages can be installed with install.packages(); Bioconductor packages such as DESeq2 can be installed with BiocManager::install().")
+}
+
+library(data.table)
+library(DESeq2)
+library(SummarizedExperiment)
+library(tidyverse)
+library(matrixStats)
+library(UpSetR)
+library(knitr)
+```
+
+## Define paths
+
+Please place this Quarto file in the same folder as the five data files, or adapt `data_dir` below.
+
+```{r}
+#| label: paths
+data_dir <- "."
+
+files <- list(
+  rna = file.path(data_dir, "RNAseq_count.tsv"),
+  methylation = file.path(data_dir, "Methylation_Mvalues.tsv"),
+  mutations = file.path(data_dir, "Genetics_mutationStatus.tsv"),
+  drugs = file.path(data_dir, "drugScreen.tsv"),
+  metadata = file.path(data_dir, "metadata.tsv")
+)
+
+file_check <- tibble(
+  file = names(files),
+  path = unlist(files),
+  exists = file.exists(unlist(files))
+)
+
+file_check |> kable()
+```
+
+# Load and inspect metadata
+
+The metadata table contains sample-level information. These variables are useful for interpreting exploratory analyses such as PCA.
+
+```{r}
+#| label: load-metadata
+metadata <- fread(files$metadata, data.table = FALSE) |>
+  as_tibble() |>
+  mutate(
+    sex = factor(sex),
+    treatedAfter = as.logical(treatedAfter),
+    died = as.logical(died),
+    IGHV = factor(IGHV),
+    trisomy12 = factor(trisomy12),
+    RNAseq_batch = factor(RNAseq_batch),
+    Methylation_batch = factor(Methylation_batch),
+    treatment = factor(treatment)
+  )
+
+glimpse(metadata)
+```
+
+::: callout-tip
+## Questions
+
+1.  Which variables are biological and which are technical?
+2.  Why might a technical variable such as `RNAseq_batch` or `Methylation_batch` appear in a PCA plot?
+:::
+
+# Load the four omics datasets
+
+The three matrix-like omics tables are read as numeric matrices with features in rows and samples in columns. The drug screen is read as a long table.
+
+RNAseq counts
+
+```{r}
+#| label: load-rna
+rna_counts_df <- fread(files$rna, data.table = FALSE, check.names = FALSE)
+
+# The first column contains feature identifiers.
+rna_feature_ids <- rna_counts_df[[1]]
+rna_counts <- as.matrix(rna_counts_df[, -1, drop = FALSE])
+storage.mode(rna_counts) <- "numeric"
+rownames(rna_counts) <- make.unique(as.character(rna_feature_ids))
+
+dim(rna_counts)
+rna_counts[1:5, 1:5]
+```
+
+Methylation M-values
+
+```{r}
+#| label: load-methylation
+methylation_df <- fread(files$methylation, data.table = FALSE, check.names = FALSE)
+
+# The first column contains CpG/probe identifiers.
+methylation_feature_ids <- methylation_df[[1]]
+methylation_mvalues <- as.matrix(methylation_df[, -1, drop = FALSE])
+
+rownames(methylation_mvalues) <- make.unique(as.character(methylation_feature_ids))
+
+dim(methylation_mvalues)
+methylation_mvalues[1:5, 1:5]
+```
+
+Mutation matrix
+
+```{r}
+#| label: load-mutations
+mutation_df <- fread(files$mutations, data.table = FALSE, check.names = FALSE)
+
+# The first column contains mutation or copy-number event identifiers.
+mutation_feature_ids <- mutation_df[[1]]
+mutation_status <- as.matrix(mutation_df[, -1, drop = FALSE])
+rownames(mutation_status) <- make.unique(as.character(mutation_feature_ids))
+
+dim(mutation_status)
+mutation_status[1:5, 1:5]
+```
+
+```{r}
+#| label: load-drugs
+drug_long <- fread(files$drugs, data.table = FALSE) |>
+  as_tibble()
+
+head(drug_long)
+```
+
+## General overview
+
+Numeric matrices
+
+```{r}
+#| label: matrix-overview
+rna_values <- as.numeric(rna_counts)
+methylation_values <- as.numeric(methylation_mvalues)
+mutation_values <- as.numeric(mutation_status)
+
+matrix_overview <- bind_rows(
+  tibble(
+    data_type = "RNA-seq counts",
+    n_features = nrow(rna_counts),
+    n_samples = ncol(rna_counts),
+    n_missing_values = sum(is.na(rna_counts)),
+    percent_missing = round(100 * mean(is.na(rna_counts)), 2),
+    min_value = round(min(rna_values, na.rm = TRUE), 3),
+    median_value = round(median(rna_values, na.rm = TRUE), 3),
+    max_value = round(max(rna_values, na.rm = TRUE), 3)
+  ),
+  tibble(
+    data_type = "DNA methylation M-values",
+    n_features = nrow(methylation_mvalues),
+    n_samples = ncol(methylation_mvalues),
+    n_missing_values = sum(is.na(methylation_mvalues)),
+    percent_missing = round(100 * mean(is.na(methylation_mvalues)), 2),
+    min_value = round(min(methylation_values, na.rm = TRUE), 3),
+    median_value = round(median(methylation_values, na.rm = TRUE), 3),
+    max_value = round(max(methylation_values, na.rm = TRUE), 3)
+  ),
+  tibble(
+    data_type = "Somatic mutations",
+    n_features = nrow(mutation_status),
+    n_samples = ncol(mutation_status),
+    n_missing_values = sum(is.na(mutation_status)),
+    percent_missing = round(100 * mean(is.na(mutation_status)), 2),
+    min_value = round(min(mutation_values, na.rm = TRUE), 3),
+    median_value = round(median(mutation_values, na.rm = TRUE), 3),
+    max_value = round(max(mutation_values, na.rm = TRUE), 3)
+  )
+)
+
+matrix_overview |> kable()
+```
+
+Long table (drug screen)
+
+```{r}
+#| label: drug-overview
+drug_long |>
+  summarise(
+    n_rows = n(),
+    n_samples = n_distinct(patientID),
+    n_drugs = n_distinct(Drug),
+    n_drug_ids = n_distinct(Drug.No.),
+    n_concentrations = n_distinct(Concentration),
+    n_missing_viability = sum(is.na(viability)),
+    min_viability = min(viability, na.rm = TRUE),
+    median_viability = median(viability, na.rm = TRUE),
+    max_viability = max(viability, na.rm = TRUE)
+  ) |>
+  kable()
+```
+
+# Check sample overlap across data types
+
+Before any multi-omics analysis, we must know which samples are available in which data tables. The UpSet plot (https://en.wikipedia.org/wiki/UpSet_plot) is a good tool for this purpose!
+
+```{r}
+#| label: sample-overlap
+
+sampleList <- list(rna_samples = colnames(rna_counts),
+                   methylation_samples = colnames(methylation_mvalues),
+                   mutation_samples = colnames(mutation_status),
+                   drug_samples = unique(drug_long$patientID),
+                   metadata_samples = metadata$sample)
+
+UpSetR::upset(UpSetR::fromList(sampleList))
+```
+
+::: callout-tip
+## Questions
+
+1.  How many samples are shared by all data types?
+2.  Would you restrict all analyses to common samples immediately? Why or why not?
+:::
+
+# Part 1: RNA-seq counts
+
+RNA-seq data are count data. Raw counts depend on sequencing depth and should not be directly compared across samples without normalization.
+
+## Inspect raw counts
+
+Check distribution of all read counts
+
+```{r}
+#| label: rna-distribution-raw
+rna_values <- as.numeric(rna_counts)
+
+set.seed(1)
+rna_values_for_plot <- sample(rna_values, size = min(length(rna_values), 100000))
+
+ggplot(tibble(value = rna_values_for_plot), aes(x = value)) +
+  geom_histogram(bins = 80) +
+  theme_bw() +
+  labs(title = "RNA-seq raw count distribution", x = "Raw count", y = "Count")
+```
+
+What type of distribution can this be?
+
+Check the library size
+
+```{r}
+#| label: rna-library-size
+#| fig-height: 20
+#| fig-width: 6
+rna_library_size <- tibble(
+  sample = colnames(rna_counts),
+  library_size = colSums(rna_counts, na.rm = TRUE)
+) |>
+  left_join(metadata, by = "sample")
+
+rna_library_size |>
+  ggplot(aes(x = reorder(sample, library_size), y = library_size, fill = RNAseq_batch)) +
+  geom_col(show.legend = TRUE) +
+  coord_flip() +
+  theme_bw() +
+  labs(title = "RNA-seq library size per sample", x = "Sample", y = "Total counts")
+```
+
+A large variation can be observed. Therefore, a normalization according to the library size is important.
+
+Inspect read count distributions per-sample before normalization
+
+```{r}
+#| label: read-count distribution wo normalization
+#| fig-width: 20
+#| fig-height: 10
+
+plotTab <- rna_counts |> 
+    as_tibble(rownames = "id") |>
+    pivot_longer(-id, names_to = "sample") |>
+    left_join(metadata, by = "sample")
+
+ggplot(plotTab, aes(x=sample, y=value, fill = RNAseq_batch)) +
+    geom_boxplot()
+```
+
+Inspect read count distributions per-sample before normalization, log10 scale
+
+```{r}
+#| label: read-count distribution log10
+#| fig-width: 20
+#| fig-height: 10
+
+#Group and order the sample by batch
+plotTab <- arrange(plotTab, RNAseq_batch) |>
+    mutate(sample = factor(sample, level= unique(sample)))
+
+ggplot(plotTab, aes(x=sample, y=log10(value), fill = RNAseq_batch)) +
+    geom_boxplot()
+```
+
+## Filter low-count genes
+
+Low-count genes often add noise and can dominate zero patterns.
+
+```{r}
+#| label: rna-filtering
+min_count <- 10
+min_samples <- ceiling(0.1 * ncol(rna_counts))
+
+keep_genes <- rowSums(rna_counts >= min_count, na.rm = TRUE) >= min_samples
+rna_counts_filtered <- rna_counts[keep_genes, , drop = FALSE]
+
+tibble(
+  step = c("Before filtering", "After filtering"),
+  n_genes = c(nrow(rna_counts), nrow(rna_counts_filtered))
+) |>
+  kable()
+```
+
+## Normalize and transform RNA-seq counts with DESeq2
+
+For RNA-seq data, we use the `DESeq2` package to estimate sample-specific size factors and to perform a variance-stabilizing transformation (VST). The VST-transformed matrix is useful for exploratory analyses such as PCA, clustering, and visual inspection.
+
+::: callout-tip
+If you want to know more about DESeq2 for pre-processing RNAseq data, please check: https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html
+:::
+
+```{r}
+#| label: rna-deseq2-vst
+rna_coldata <- tibble(sample = colnames(rna_counts_filtered)) |>
+  left_join(metadata, by = "sample") |>
+  as.data.frame()
+rownames(rna_coldata) <- rna_coldata$sample
+
+# DESeq2 expects count data as non-negative integers and samples in colData
+# to be in the same order as the columns of the count matrix.
+rna_coldata <- rna_coldata[colnames(rna_counts_filtered), , drop = FALSE]
+
+#Create a DESeq object
+dds <- DESeqDataSetFromMatrix(
+  countData = rna_counts_filtered,
+  colData = rna_coldata,
+  design = ~ 1
+)
+
+#estimate library size
+dds <- estimateSizeFactors(dds)
+rna_size_factors <- sizeFactors(dds)
+rna_normalized_counts <- counts(dds, normalized = TRUE)
+
+#perform variance stabilizing transformation (vst)
+rna_vst_object <- vst(dds, blind = TRUE)
+rna_vst <- assay(rna_vst_object)
+
+#plot distribution after vst
+rna_vst_values <- as.numeric(rna_vst)
+rna_vst_values <- rna_vst_values[!is.na(rna_vst_values)]
+
+set.seed(1)
+rna_vst_values_for_plot <- sample(
+  rna_vst_values,
+  size = min(length(rna_vst_values), 100000)
+)
+
+ggplot(tibble(value = rna_vst_values_for_plot), aes(x = value)) +
+  geom_histogram(bins = 80) +
+  theme_bw() +
+  labs(title = "RNA-seq DESeq2 VST distribution", x = "VST-transformed expression", y = "Count")
+```
+
+Inspect read count distributions per-sample after normalization and transformation
+
+```{r}
+#| label: read-count distribution with vst
+#| fig-width: 20
+#| fig-height: 10
+
+plotTab <- rna_vst |> 
+    as_tibble(rownames = "id") |>
+    pivot_longer(-id, names_to = "sample") |>
+    left_join(metadata, by = "sample")
+
+plotTab <- arrange(plotTab, RNAseq_batch) |>
+    mutate(sample = factor(sample, level= unique(sample)))
+
+
+ggplot(plotTab, aes(x=sample, y=value, fill = RNAseq_batch)) +
+    geom_boxplot()
+```
+
+Any difference compared to the plot before normalization?
+
+## PCA on RNA-seq data
+
+For exploratory PCA, we remove near-constant genes, select the most variable genes (usually top 5000), and run PCA with samples in rows.
+
+```{r}
+#| label: rna-pca-prep
+
+rna_pca_input <- rna_vst
+
+rna_variances <- rowVars(rna_pca_input)
+rna_pca_input <- rna_pca_input[rna_variances > 1e-8, , drop = FALSE]
+rna_variances <- rowVars(rna_pca_input)
+rna_top_features <- order(rna_variances, decreasing = TRUE)[seq_len(min(5000, nrow(rna_pca_input)))]
+rna_pca_input <- rna_pca_input[rna_top_features, , drop = FALSE]
+
+dim(rna_pca_input)
+```
+
+```{r}
+#| label: rna-pca
+rna_pca <- prcomp(t(rna_pca_input), center = TRUE, scale. = TRUE)
+rna_pve <- 100 * rna_pca$sdev^2 / sum(rna_pca$sdev^2)
+
+rna_pca_df <- as_tibble(rna_pca$x[, 1:10, drop = FALSE], rownames = "sample") |>
+  left_join(metadata, by = "sample")
+
+tibble(
+  PC = seq_len(min(20, length(rna_pve))),
+  variance_explained = rna_pve[seq_len(min(20, length(rna_pve)))]
+) |>
+  ggplot(aes(x = PC, y = variance_explained)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(title = "RNA-seq PCA: variance explained", x = "Principal component", y = "% variance explained")
+```
+
+### Correlating PC scores with sample metadat
+
+A great way to explore and explain the potential sources of variation in the data is to systematically correlate principal components and metadata entries. It can give us a hint about the potential technical confounders and how strong the biological singals are. This process is also called metadata-assisted QC.
+
+We first create a function to do this. This function basically systematically test associations between the variables in two tables (one is PC table and one is metadata table). Because the types of metadata entries can be very different, e.g. catagorical, numberical or binary, different tests will be used.
+
+```{r}
+#| label: metadata-qc-function
+
+metaQC <- function (pca_df, correlation_method = "pearson", 
+    plot = FALSE, pCut = 0.01, ifFdr = FALSE, pMax = 12, onlySignificant = FALSE) 
+{
+    #detect columns storing pca values using regular expression 
+    pcNames <- colnames(pca_df)[str_detect(colnames(pca_df), "PC[0-9]+")]
+    #get metadata variable columns
+    metaNames <- colnames(pca_df)[!colnames(pca_df) %in% c(pcNames, "sample")]
+
+    
+    #loop over the two tables for associations test
+    resTab <- lapply(pcNames, function(colPC) {
+        lapply(metaNames, function(colMeta) {
+            var1 <- pca_df[[colPC]] #PCs should always be numeric
+            var2 <- pca_df[[colMeta]] #metadata variables can be different types
+            p <- tryCatch({
+                if (is.numeric(var2)) {
+                  #if metadata variable is numerical, use correlation test
+                  cor.test(var1, var2, method = correlation_method, 
+                    use = "pairwise.complete.obs")$p.value
+                }
+                else if (!is.numeric(var2)) {
+                  #if metadata is categorical (including binary), use ANOVA
+                  aovRes <- summary(aov(var1 ~ factor(var2)))
+                  aovRes[[1]][5][1, 1]
+                }
+            }, error = function(err) NA)
+            data.frame(var1 = colPC, var2 = colMeta, p = p)
+        }) |> bind_rows()
+    }) |> bind_rows() |> arrange(p) |> 
+        mutate(p.adj = p.adjust(p, method = "BH"))
+    
+    if (!plot) {
+        return(resTab)
+    }
+    #make a heatmap showing the association p-values
+    else {
+        plotTab <- resTab |> 
+            mutate(pPlot = ifelse(rep(ifFdr, nrow(resTab)), -log10(p.adj), -log10(p))) |>
+            mutate(pPlot = ifelse(pPlot <= -log10(pCut), 0, pPlot)) |>
+            mutate(pPlot = ifelse(pPlot >= pMax, pMax, pPlot))
+        if (onlySignificant) {
+            #only show significant associations
+            sigTab <- filter(plotTab, pPlot != 0)
+            plotTab <- filter(plotTab, var1 %in% sigTab$var1, 
+                var2 %in% sigTab$var2)
+        }
+        if (any(str_detect(plotTab$var1, "Factor|PC"))) {
+            #reorder by PC index
+            plotTab <- mutate(plotTab, indexNoSuffix = str_remove(var1, "Factor|PC")) |> 
+                mutate(indexNoSuffix = as.numeric(indexNoSuffix)) |> 
+                arrange(desc(indexNoSuffix)) |> 
+                mutate(var1 = factor(var1, levels = unique(var1)))
+        }
+        p <- ggplot(plotTab, aes(x = var2, y = var1, fill = pPlot)) + 
+            geom_tile(color = "black") + scale_fill_gradient(low = "grey", 
+            high = "red", name = ifelse(ifFdr, "-log10(adj. Pval)", 
+                "-log10(Pval)")) + theme_void() + scale_y_discrete(expand = c(0, 
+            0)) + scale_x_discrete(expand = c(0, 0)) + ggtitle("Association P-value heatmap") + 
+            theme(axis.text.x = element_text(angle = 90, hjust = 1, 
+                vjust = 0.5), axis.text.y = element_text(hjust = 1), 
+                plot.title = element_text(face = "bold", hjust = 0.5))
+        return(list(resTab = resTab, plot = p))
+    }
+}
+```
+
+Perform associations test
+
+```{r}
+qcRes <- metaQC(rna_pca_df, correlation_method = "pearson", plot=TRUE, pCut = 0.05, 
+                ifFdr = TRUE, onlySignificant = TRUE)
+```
+
+Show the top10 association test results as a table
+
+```{r}
+head(qcRes$resTab, n=10)
+```
+
+Show the result as heatmap
+
+```{r}
+qcRes$plot
+```
+
+Question: how to intepret this plot?
+
+```{r}
+#| label: rna-pca-batch
+rna_pca_df |>
+  ggplot(aes(x = PC1, y = PC2, colour = RNAseq_batch)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "RNA-seq PCA coloured by RNA-seq batch",
+    x = paste0("PC1 (", round(rna_pve[1], 1), "% variance)"),
+    y = paste0("PC2 (", round(rna_pve[2], 1), "% variance)"),
+    colour = "RNA-seq batch"
+  )
+```
+
+```{r}
+#| label: rna-pca-ighv
+rna_pca_df |>
+  ggplot(aes(x = PC2, y = PC3, colour = IGHV)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "RNA-seq PCA coloured by IGHV status",
+    x = paste0("PC2 (", round(rna_pve[2], 1), "% variance)"),
+    y = paste0("PC3 (", round(rna_pve[3], 1), "% variance)"),
+    colour = "IGHV"
+  )
+```
+
+```{r}
+#| label: rna-pca-trisomy12
+rna_pca_df |>
+  ggplot(aes(x = PC2, y = PC5, colour = trisomy12)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "RNA-seq PCA coloured by trisomy12 status",
+    x = paste0("PC2 (", round(rna_pve[2], 1), "% variance)"),
+    y = paste0("PC5 (", round(rna_pve[5], 1), "% variance)"),
+    colour = "trisomy12"
+  )
+```
+
+::: callout-tip
+## Questions
+
+1.  Does PC1 or PC2 appear to reflect a technical variable such as RNA-seq batch?
+2.  Does any known biological variable appear to separate samples?
+3.  Why did we transform counts before PCA?
+4.  Why did we select the most variable genes?
+:::
+
+# Part 2: DNA methylation M-values
+
+Methylation M-values are already continuous values and are commonly used for statistical modeling. Positive and negative values indicate different methylation states relative to the beta-value scale.
+
+## Inspect M-values
+
+```{r}
+#| label: methylation-distribution
+methylation_values <- as.numeric(methylation_mvalues)
+methylation_values <- methylation_values[!is.na(methylation_values)]
+
+set.seed(1)
+methylation_values_for_plot <- sample(
+  methylation_values,
+  size = min(length(methylation_values), 100000)
+)
+
+ggplot(tibble(value = methylation_values_for_plot), aes(x = value)) +
+  geom_histogram(bins = 80) +
+  theme_bw() +
+  labs(title = "DNA methylation M-value distribution", x = "M-value", y = "Count")
+```
+
+## PCA on methylation data
+
+```{r}
+#| label: methylation-pca-prep
+methylation_pca_input <- methylation_mvalues
+
+methylation_variances <- rowVars(methylation_pca_input)
+methylation_top_features <- order(methylation_variances, decreasing = TRUE)[seq_len(min(2000, nrow(methylation_pca_input)))]
+methylation_pca_input <- methylation_pca_input[methylation_top_features, , drop = FALSE]
+
+dim(methylation_pca_input)
+```
+
+```{r}
+#| label: methylation-pca
+methylation_pca <- prcomp(t(methylation_pca_input), center = TRUE, scale. = TRUE)
+methylation_pve <- 100 * methylation_pca$sdev^2 / sum(methylation_pca$sdev^2)
+
+methylation_pca_df <- as_tibble(methylation_pca$x[, 1:5, drop = FALSE], rownames = "sample") |>
+  left_join(metadata, by = "sample")
+
+tibble(
+  PC = seq_len(min(20, length(methylation_pve))),
+  variance_explained = methylation_pve[seq_len(min(20, length(methylation_pve)))]
+) |>
+  ggplot(aes(x = PC, y = variance_explained)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(title = "Methylation PCA: variance explained", x = "Principal component", y = "% variance explained")
+```
+
+### Metadata QC on methylation data
+
+Perform associations test
+
+```{r}
+qcRes <- metaQC(methylation_pca_df, correlation_method = "pearson", plot=TRUE, pCut = 0.05, 
+                ifFdr = TRUE, onlySignificant = TRUE)
+```
+
+Show the top10 association test results as a table
+
+```{r}
+head(qcRes$resTab, n=10)
+```
+
+Show the result as heatmap
+
+```{r}
+qcRes$plot
+```
+
+Any PCs associated with batch?
+
+```{r}
+#| label: methylation-pca25-batch
+methylation_pca_df |>
+  ggplot(aes(x = PC2, y = PC5, colour = Methylation_batch)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "Methylation PCA coloured by Methylation batch",
+    x = paste0("PC2 (", round(methylation_pve[2], 1), "% variance)"),
+    y = paste0("PC5 (", round(methylation_pve[5], 1), "% variance)"),
+    colour = "batch"
+  )
+```
+
+```{r}
+#| label: methylation-pca-ighv
+methylation_pca_df |>
+  ggplot(aes(x = PC1, y = PC2, colour = IGHV)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "Methylation PCA coloured by IGHV status",
+    x = paste0("PC1 (", round(methylation_pve[1], 1), "% variance)"),
+    y = paste0("PC2 (", round(methylation_pve[2], 1), "% variance)"),
+    colour = "IGHV"
+  )
+```
+
+::: callout-tip
+## Questions
+
+1.  Is the methylation PCA structure similar to or different from the RNA-seq PCA structure?
+:::
+
+# Part 3: Somatic mutation status
+
+Mutation data are binary. This makes them different from RNA-seq and methylation data. PCA can still be used for exploration, but we should be careful when interpreting distances and variance.
+
+## Inspect mutation frequency
+
+```{r}
+#| label: mutation-summary
+mutation_frequency <- tibble(
+  feature = rownames(mutation_status),
+  n_mutated = rowSums(mutation_status == 1, na.rm = TRUE),
+  frequency = rowMeans(mutation_status == 1, na.rm = TRUE)
+)
+
+mutation_frequency |>
+  arrange(desc(frequency)) |>
+  slice_head(n = 15) |>
+  kable()
+```
+
+## PCA on mutation data
+
+```{r}
+#| label: mutation-pca-prep
+mutation_keep_missing <- rowMeans(is.na(mutation_status)) <= 0.5
+mutation_pca_input <- mutation_status[mutation_keep_missing, , drop = FALSE]
+
+mutation_feature_medians <- rowMedians(mutation_pca_input, na.rm = TRUE)
+mutation_missing_index <- which(is.na(mutation_pca_input), arr.ind = TRUE)
+
+if (nrow(mutation_missing_index) > 0) {
+  mutation_pca_input[mutation_missing_index] <- mutation_feature_medians[mutation_missing_index[, 1]]
+}
+
+dim(mutation_pca_input)
+```
+
+**Question: Based on the code above, how were the missing values in the mutation matrix handled?**
+
+```{r}
+#| label: mutation-pca
+mutation_pca <- prcomp(t(mutation_pca_input), center = TRUE, scale. = TRUE)
+mutation_pve <- 100 * mutation_pca$sdev^2 / sum(mutation_pca$sdev^2)
+
+mutation_pca_df <- as_tibble(mutation_pca$x[, 1:5, drop = FALSE], rownames = "sample") |>
+  left_join(metadata, by = "sample")
+
+tibble(
+  PC = seq_len(min(20, length(mutation_pve))),
+  variance_explained = mutation_pve[seq_len(min(20, length(mutation_pve)))]
+) |>
+  ggplot(aes(x = PC, y = variance_explained)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(title = "Mutation PCA: variance explained", x = "Principal component", y = "% variance explained")
+```
+
+```{r}
+#| label: mutation-pca-IGHV
+mutation_pca_df |>
+  ggplot(aes(x = PC1, y = PC2, colour = IGHV)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "Mutation PCA coloured by IGHV",
+    x = paste0("PC1 (", round(mutation_pve[1], 1), "% variance)"),
+    y = paste0("PC2 (", round(mutation_pve[2], 1), "% variance)"),
+    colour = "IGHV"
+  )
+```
+
+::: callout-warning
+## Interpretation warning
+
+Mutation data are sparse and binary. PCA is useful as a quick exploratory tool, but binary likelihood models or specialized methods may be more appropriate for formal modeling. In MOFA, binary mutation data can be modeled with a Bernoulli likelihood.
+:::
+
+::: callout-tip
+## Questions
+
+1.  Are most mutation features rare or common?
+2.  Why can rare binary events be difficult for PCA?
+3.  How might mutation data contribute to multi-omics integration even if they explain little continuous variance?
+:::
+
+# Part 4: Drug response data
+
+The drug screen is stored as a long table with one row per sample-drug-concentration measurement. For exploratory analysis and later MOFA preparation, we will summarize the drug response into one value per sample and drug.
+
+## Inspect the long table
+
+```{r}
+#| label: drug-glimpse
+glimpse(drug_long)
+```
+
+```{r}
+#| label: drug-viability-distribution
+drug_long |>
+  ggplot(aes(x = viability)) +
+  geom_histogram(bins = 80) +
+  theme_bw() +
+  labs(title = "Distribution of viability measurements", x = "Viability", y = "Number of measurements")
+```
+
+## Example dose-response curves
+
+```{r}
+#| label: drug-dose-response-example
+top_drugs <- drug_long |>
+  count(Drug, sort = TRUE) |>
+  slice_head(n = 4) |>
+  pull(Drug)
+
+example_samples <- drug_long |>
+  filter(Drug %in% top_drugs) |>
+  count(patientID, sort = TRUE) |>
+  slice_head(n = 8) |>
+  pull(patientID)
+
+drug_long |>
+  filter(Drug %in% top_drugs, patientID %in% example_samples) |>
+  ggplot(aes(x = Concentration, y = viability, group = patientID)) +
+  geom_line(alpha = 0.5) +
+  geom_point(alpha = 0.7) +
+  scale_x_log10() +
+  facet_wrap(~ Drug, scales = "free_x") +
+  theme_bw() +
+  labs(title = "Example dose-response curves", x = "Concentration (log scale)", y = "Viability")
+```
+
+## Summarize drug response to a sample-by-drug matrix
+
+For simplicity, we calculate the mean viability across tested concentrations for each sample and drug. Lower mean viability indicates stronger drug sensitivity.
+
+::: callout-note
+## Teaching note
+
+In real pharmacological analyses, one may estimate more interpretable response summaries such as area under the curve, IC50, or DSS. Here, mean viability is used only as a simple exploratory summary.
+:::
+
+```{r}
+#| label: drug-wide-matrix
+drug_summary <- drug_long |>
+  group_by(patientID, Drug.No., Drug) |>
+  summarise(
+    mean_viability = mean(viability, na.rm = TRUE),
+    n_concentrations = n_distinct(concIndex),
+    .groups = "drop"
+  ) |>
+  mutate(drug_label = paste0(Drug.No., "_", make.names(Drug)))
+
+drug_wide <- drug_summary |>
+  select(patientID, drug_label, mean_viability) |>
+  pivot_wider(names_from = patientID, values_from = mean_viability) |>
+  as.data.frame()
+
+drug_names <- drug_wide$drug_label
+drug_matrix <- drug_wide |>
+  select(-drug_label) |>
+  as.matrix()
+rownames(drug_matrix) <- drug_names
+storage.mode(drug_matrix) <- "numeric"
+
+drug_values <- as.numeric(drug_matrix)
+
+tibble(
+  data_type = "Drug response mean viability",
+  n_features = nrow(drug_matrix),
+  n_samples = ncol(drug_matrix),
+  n_missing_values = sum(is.na(drug_matrix)),
+  percent_missing = round(100 * mean(is.na(drug_matrix)), 2),
+  min_value = round(min(drug_values, na.rm = TRUE), 3),
+  median_value = round(median(drug_values, na.rm = TRUE), 3),
+  max_value = round(max(drug_values, na.rm = TRUE), 3)
+) |>
+  kable()
+```
+
+## PCA on drug response data
+
+```{r}
+#| label: drug-pca-prep
+
+drug_pca_input <- drug_matrix
+
+
+drug_variances <- rowVars(drug_pca_input)
+drug_pca_input <- drug_pca_input[drug_variances > 1e-8, , drop = FALSE]
+
+dim(drug_pca_input)
+```
+
+**Question: can you perform a metadata-assisted QC on the drug response data? What can you find?**
+
+```{r}
+#| label: drug-pca
+drug_pca <- prcomp(t(drug_pca_input), center = TRUE, scale. = TRUE)
+drug_pve <- 100 * drug_pca$sdev^2 / sum(drug_pca$sdev^2)
+
+drug_pca_df <- as_tibble(drug_pca$x[, 1:5, drop = FALSE], rownames = "sample") |>
+  left_join(metadata, by = "sample")
+
+tibble(
+  PC = seq_len(min(20, length(drug_pve))),
+  variance_explained = drug_pve[seq_len(min(20, length(drug_pve)))]
+) |>
+  ggplot(aes(x = PC, y = variance_explained)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(title = "Drug response PCA: variance explained", x = "Principal component", y = "% variance explained")
+```
+
+```{r}
+#| label: drug-pca-IGHV
+drug_pca_df |>
+  ggplot(aes(x = PC1, y = PC2, colour = IGHV)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "Drug response PCA coloured by IGHV status",
+    x = paste0("PC1 (", round(drug_pve[1], 1), "% variance)"),
+    y = paste0("PC2 (", round(drug_pve[2], 1), "% variance)"),
+    colour = "Treated after sampling"
+  )
+```
+
+::: callout-tip
+## Questions
+
+1.  What does low viability mean biologically?
+2.  Which drug response summary would be better than mean viability?
+3.  Do drug response PCs seem associated with metadata?
+:::
+
+# Part 5: Canonical correlation analysis between RNA-seq and methylation
+
+PCA explores one data matrix at a time. Canonical correlation analysis (CCA) is a classical method for finding paired linear combinations of two data matrices that are maximally correlated across the same samples.
+
+Here, we use RNA-seq and methylation because both are continuous data types after DESeq2 variance-stabilizing transformation of the RNA-seq counts. This example is included as a conceptual bridge toward multi-omics integration.
+
+::: callout-warning
+## Important limitation
+
+Classical CCA is not ideal when the number of features is much larger than the number of samples. To make this example stable and easy to run, we select a small number of highly variable RNA and methylation features. In real high-dimensional omics applications, regularized CCA, sparse CCA, PLS, or latent factor models are usually more appropriate.
+:::
+
+## Prepare matched RNA-seq and methylation matrices
+
+```{r}
+#| label: cca-prepare-data
+cca_samples <- Reduce(intersect, list(
+  colnames(rna_pca_input),
+  colnames(methylation_pca_input),
+  metadata$sample
+))
+
+length(cca_samples)
+
+rna_for_cca <- rna_pca_input[, cca_samples, drop = FALSE]
+methylation_for_cca <- methylation_pca_input[, cca_samples, drop = FALSE]
+
+# Select a small number of highly variable features from each data type.
+# This keeps the example numerically stable for classical CCA.
+n_rna_cca <- 30
+n_methylation_cca <- 30
+
+rna_cca_variances <- rowVars(rna_for_cca)
+methylation_cca_variances <- rowVars(methylation_for_cca)
+
+rna_cca_features <- order(rna_cca_variances, decreasing = TRUE)[seq_len(min(n_rna_cca, nrow(rna_for_cca)))]
+methylation_cca_features <- order(methylation_cca_variances, decreasing = TRUE)[seq_len(min(n_methylation_cca, nrow(methylation_for_cca)))]
+
+rna_for_cca <- rna_for_cca[rna_cca_features, , drop = FALSE]
+methylation_for_cca <- methylation_for_cca[methylation_cca_features, , drop = FALSE]
+
+# cancor() expects samples in rows and features in columns.
+X_rna <- t(rna_for_cca)
+Y_methylation <- t(methylation_for_cca)
+
+# Standardize features before CCA.
+X_rna <- scale(X_rna)
+Y_methylation <- scale(Y_methylation)
+
+dim(X_rna)
+dim(Y_methylation)
+```
+
+## Run CCA using the cancor function
+
+```{r}
+#| label: cca-run
+cca_result <- cancor(X_rna, Y_methylation)
+
+cca_correlations <- tibble(
+  canonical_dimension = seq_along(cca_result$cor),
+  canonical_correlation = cca_result$cor
+)
+
+cca_correlations |>
+  slice_head(n = 10) |>
+  kable(digits = 3)
+```
+
+```{r}
+#| label: cca-correlations-plot
+cca_correlations |>
+  slice_head(n = 10) |>
+  ggplot(aes(x = canonical_dimension, y = canonical_correlation)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(
+    title = "CCA between RNA-seq and methylation",
+    x = "Canonical dimension",
+    y = "Canonical correlation"
+  )
+```
+
+## Visualize the first pair of canonical variates
+
+```{r}
+#| label: cca-scores,first pair
+rna_canonical_scores <- X_rna %*% cca_result$xcoef
+methylation_canonical_scores <- Y_methylation %*% cca_result$ycoef
+
+cca_scores_df <- tibble(
+  sample = rownames(X_rna),
+  RNA_CV1 = rna_canonical_scores[, 1],
+  Methylation_CV1 = methylation_canonical_scores[, 1],
+  RNA_CV2 = rna_canonical_scores[, 2],
+  Methylation_CV2 = methylation_canonical_scores[, 2]
+) |>
+  left_join(metadata, by = "sample")
+
+cca_scores_df |>
+  ggplot(aes(x = RNA_CV1, y = Methylation_CV1, colour = sex)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, colour = "black") +
+  theme_bw() +
+  labs(
+    title = "First pair of RNA-seq and methylation canonical variates",
+    x = "RNA-seq canonical variate 1",
+    y = "Methylation canonical variate 1",
+    colour = "Sex"
+  )
+```
+
+## Visualize the second pair of canonical variates
+
+```{r}
+#| label: cca-scores, second pair
+rna_canonical_scores <- X_rna %*% cca_result$xcoef
+methylation_canonical_scores <- Y_methylation %*% cca_result$ycoef
+
+cca_scores_df <- tibble(
+  sample = rownames(X_rna),
+  RNA_CV1 = rna_canonical_scores[, 1],
+  Methylation_CV1 = methylation_canonical_scores[, 1],
+  RNA_CV2 = rna_canonical_scores[, 2],
+  Methylation_CV2 = methylation_canonical_scores[, 2]
+) |>
+  left_join(metadata, by = "sample")
+
+cca_scores_df |>
+  ggplot(aes(x = RNA_CV2, y = Methylation_CV2, colour = IGHV)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, colour = "black") +
+  theme_bw() +
+  labs(
+    title = "First pair of RNA-seq and methylation canonical variates",
+    x = "RNA-seq canonical variate 1",
+    y = "Methylation canonical variate 1",
+    colour = "IGHV"
+  )
+```
+
+## Inspect features contributing to the first canonical dimension
+
+```{r}
+#| label: cca-loadings-rna
+rna_cca_weights <- tibble(
+  feature = colnames(X_rna),
+  weight_CV1 = cca_result$xcoef[, 1]
+) |>
+  mutate(abs_weight = abs(weight_CV1)) |>
+  arrange(desc(abs_weight))
+
+rna_cca_weights |>
+  slice_head(n = 10) |>
+  kable(digits = 3)
+```
+
+```{r}
+#| label: cca-loadings-methylation
+methylation_cca_weights <- tibble(
+  feature = colnames(Y_methylation),
+  weight_CV1 = cca_result$ycoef[, 1]
+) |>
+  mutate(abs_weight = abs(weight_CV1)) |>
+  arrange(desc(abs_weight))
+
+methylation_cca_weights |>
+  slice_head(n = 10) |>
+  kable(digits = 3)
+```
+
+::: callout-tip
+## Questions
+
+1.  Can you find out where the genes and CpGs with high loadings on the first canonical dimension are located on the chromosomes? Why?
+2.  Why is the first canonical dimension strongly associated with sex, whereas PC1 from either the RNA-seq or methylation PCA is not associated with sex?
+3.  How is CCA conceptually different from PCA?
+4.  Why might CCA be less suitable for the full dataset?
+:::
+
+# Compare exploratory structure across omics layers
+
+Now that we have run PCA for each data type, we can compare whether different omics layers show similar or distinct sample structures.
+
+```{r}
+#| label: combined-pca-plot
+bind_rows(
+  rna_pca_df |> mutate(data_type = "RNA-seq"),
+  methylation_pca_df |> mutate(data_type = "Methylation"),
+  mutation_pca_df |> mutate(data_type = "Mutations"),
+  drug_pca_df |> mutate(data_type = "Drug response")
+) |>
+  ggplot(aes(x = PC1, y = PC2, colour = IGHV)) +
+  geom_point(size = 2, alpha = 0.8) +
+  facet_wrap(~ data_type, scales = "free") +
+  theme_bw() +
+  labs(title = "PCA comparison across omics layers", colour = "IGHV")
+```
+
+::: callout-tip
+## Discussion
+
+Compare the four PCA plots:
+
+1.  Which data type shows the strongest sample separation?
+2.  Do the same samples behave as outliers across multiple omics layers?
+3.  Are there signals that appear in one data type but not another?
+4.  Why might multi-omics integration be useful here?
+:::
+
+# A simple concatenated PCA: what can go wrong?
+
+A simple way to combine omics data is to concatenate all features into one large matrix and run PCA. This is easy, but it has important limitations: data types with more features or larger variance can dominate the result.
+
+```{r}
+#| label: concatenated-pca
+common_for_concat <- Reduce(intersect, list(
+  colnames(rna_pca_input),
+  colnames(methylation_pca_input),
+  colnames(mutation_pca_input),
+  colnames(drug_pca_input),
+  metadata$sample
+))
+
+concat_matrix <- rbind(
+  rna_pca_input[, common_for_concat, drop = FALSE],
+  methylation_pca_input[, common_for_concat, drop = FALSE],
+  mutation_pca_input[, common_for_concat, drop = FALSE],
+  drug_pca_input[, common_for_concat, drop = FALSE]
+)
+
+concat_metadata <- metadata |>
+  filter(sample %in% common_for_concat)
+
+concat_pca <- prcomp(t(concat_matrix), center = TRUE, scale. = TRUE)
+concat_pve <- 100 * concat_pca$sdev^2 / sum(concat_pca$sdev^2)
+
+concat_pca_df <- as_tibble(concat_pca$x[, 1:5, drop = FALSE], rownames = "sample") |>
+  left_join(concat_metadata, by = "sample")
+
+concat_pca_df |>
+  ggplot(aes(x = PC1, y = PC2, colour = IGHV)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "Concatenated PCA coloured by IGHV",
+    x = paste0("PC1 (", round(concat_pve[1], 1), "% variance)"),
+    y = paste0("PC2 (", round(concat_pve[2], 1), "% variance)"),
+    colour = "IGHV"
+  )
+```
+
+Dimensions of concatenated matrix
+
+```{r}
+dim(concat_matrix)
+```
+
+```{r}
+#| label: concatenated-feature-composition
+tibble(
+  data_type = c("RNA-seq", "Methylation", "Mutations", "Drug response"),
+  n_features = c(
+    nrow(rna_pca_input),
+    nrow(methylation_pca_input),
+    nrow(mutation_pca_input),
+    nrow(drug_pca_input)
+  )
+) |>
+  mutate(percent_features = 100 * n_features / sum(n_features)) |>
+  kable(digits = 2)
+```
+
+::: callout-tip
+## Questions
+
+1.  Which PCA plot from the single-omic data resembles the PCA from the concatenated data the most? Why? And what could be the problem?
+:::
+
+# Prepare data for Day 2 MOFA practical
+
+For Day 2, we save processed matrices in a consistent format: **features in rows and samples in columns**.
+
+We keep the data relatively small so that models train quickly in class.
+
+```{r}
+#| label: save-processed-data
+
+#a list object to store the datasets
+CLL_data <- list()
+
+# RNA-seq for MOFA
+rna_for_mofa <- rna_vst
+rna_mofa_variances <- rowVars(rna_for_mofa)
+rna_for_mofa <- rna_for_mofa[order(rna_mofa_variances, decreasing = TRUE)[seq_len(min(5000, nrow(rna_for_mofa)))], , drop = FALSE]
+CLL_data$mRNA <- rna_for_mofa
+
+# Methylation for MOFA (top 5000 most variable features)
+meth_for_mofa <- methylation_mvalues
+meth_mofa_variances <- rowVars(meth_for_mofa)
+meth_for_mofa <- meth_for_mofa[order(meth_mofa_variances, decreasing = TRUE)[seq_len(min(5000, nrow(meth_for_mofa)))], , drop = FALSE]
+CLL_data$Methylation <- meth_for_mofa
+
+# Mutation data for MOFA
+mutations_for_mofa <- mutation_status
+CLL_data$Mutations <- mutations_for_mofa
+
+# Drug response for MOFA
+drugs_for_mofa <- drug_matrix
+CLL_data$Drugs <- drugs_for_mofa
+
+#metadata
+CLL_data$metadata <- metadata
+
+saveRDS(CLL_data, file = "day1_processed_omics_for_mofa.rds")
+```
+
+::: callout-important
+## Output for Day 2
+
+The file `day1_processed_omics_for_mofa.rds` contains the processed matrices and metadata. It can be loaded in the Day 2 MOFA practical with:
+
+``` r
+mofa_day2_data <- readRDS("day1_processed_omics_for_mofa.rds")
+```
+:::
+
+# Suggested answers to questions
+
+This section provides suggested answers for the questions asked throughout the practical. Students should first discuss the questions before checking these answers.
+
+## Metadata questions
+
+1.  **Which variables are biological and which are technical?**\
+    `Gender`, `age`, `IGHV`, `trisomy12`, `treatedAfter`,`treatment`, `TTT`, `OS`, and `died` describe biological or clinical information. `RNAseq_batch` is technical and should be checked as a possible confounder.
+
+2.  **Why might `RNAseq_batch` or `Methylation_batch` appear in a PCA plot?**\
+    Batch-specific sample processing, library preparation, sequencing runs, or other technical effects can introduce systematic variation that affects many genes simultaneously. PCA captures large sources of variation, regardless of whether they are biological or technical.
+
+## Sample overlap questions
+
+1.  **How many samples are shared by all data types?**\
+    128, as shown in the UpSet plot
+
+2.  **Would you restrict all analyses to common samples immediately?**\
+    Not necessarily. For single-omics QC and exploratory analysis, it is often better to use all available samples for that omics layer. Restricting too early may discard useful information. For methods requiring complete cases, common samples are needed; for methods that tolerate missing modalities (e.g. MOFA), this restriction may be relaxed.
+
+## RNA-seq questions
+
+1.  **Does PC1 or PC2 appear to reflect RNA-seq batch?**\
+    PC1 shows a weak association with batch, as indicated by the QC results and PCA plot.
+
+2.  **Does any known biological variable appear to separate samples?**\
+    Check the RNA-seq PCA plot coloured by `IGHV`. Clear separation would suggest that gene expression captures biology related to IGHV status. PC2 shows a strong association with IGHV status
+
+3.  **Why transform counts before PCA?**\
+    Raw counts are affected by sequencing depth and have strong mean-variance dependence. DESeq2 size-factor normalization and VST transformation make samples more comparable, reduce mean-variance dependence, and make the data more suitable for PCA.
+
+4.  **Why select the most variable genes?**\
+    Genes with almost no variation across samples contribute little to sample separation and mostly add noise and computation time. Selecting variable genes makes exploratory PCA easier to interpret.
+
+## Methylation questions
+
+1.  **Is methylation PCA similar to RNA-seq PCA?**\
+    Compare the RNA-seq and methylation PCA plots. Similar separation suggests shared biological structure; different separation suggests modality-specific biology, technical variation, or both. The PCA results suggestion the RNAseq data and methylation data share similar source of variations, e.g. IGHV and sex. While both are affected by technical variations (batch effect). Trisomy12 has less impact on methylation data than RNAseq data.
+
+## Mutation questions
+
+1.  **Are most mutation features rare or common?**\
+    The mutation frequency histogram usually shows many rare binary events. Students should verify this using the `mutation_frequency` table and plot.
+
+2.  **Why can rare binary events be difficult for PCA?**\
+    Rare events affect only a few samples. PCA is based on continuous variance and Euclidean distances, so rare binary features may create unstable or hard-to-interpret axes.
+
+3.  **How might mutation data contribute to integration?**\
+    Even if mutations explain limited continuous variance, they can help annotate latent factors, define subgroups, or explain downstream molecular and drug-response patterns.
+
+## Drug response questions
+
+1.  **What does low viability mean biologically?**\
+    Low viability after drug treatment means that cells are more sensitive to the drug under the tested conditions.
+
+2.  **Which summary would be better than mean viability?**\
+    Area under the dose-response curve, IC50, EC50, or drug sensitivity score would usually be more pharmacologically meaningful than simple mean viability.
+
+3.  **Do drug response PCs seem associated with clinical metadata?**\
+    Use the metaQC function on the drug response data.
+
+## CCA questions
+
+1.  **Can you find out where the genes and CpGs with high loadings on the first canonical dimension are located on the chromosomes? Why?**\
+    Most of the genes and CpGs with high loadings are located on the Y chromosome. This is because only male patients carry a Y chromosome; therefore, Y-chromosome genes are specifically expressed in males, and CpG methylation signals from the Y chromosome are also only detected in male samples. As a result, sex-specific variation strongly contributes to the first canonical dimension, generating a strong correlation between the RNA-seq and methylation data in the CCA.
+
+2.  **Why is the first canonical dimension strongly associated with sex, whereas PC1 from either the RNA-seq or methylation PCA is not associated with sex?** Only a relatively small subset of genes and CpGs in the genome are located on the Y chromosome. PCA identifies directions that explain the largest overall variance within a single data modality; therefore, sex-related variation may account for only a modest proportion of the total variance and may not dominate PC1. In contrast, CCA identifies dimensions that maximize the correlation between two data modalities. Because sex-associated signals are shared between the RNA-seq and methylation datasets, sex becomes a dominant source of cross-modal correlation and is therefore captured strongly by the first canonical dimension.
+
+3.  **How is CCA different from PCA?**\
+    PCA finds directions of maximal variance within one data matrix. CCA finds paired directions in two data matrices that are maximally correlated with each other.
+
+4.  **Why might CCA be less suitable for the full dataset?**\
+    Classical CCA is primarily designed for integrating two data matrices and does not naturally extend to settings with multiple omics layers. It is also sensitive in high-dimensional scenarios where the number of features greatly exceeds the number of samples, which can lead to overfitting and unstable canonical dimensions. In addition, CCA focuses on maximizing correlation between datasets rather than explaining the major sources of variation within each dataset. As a result, the top canonical dimensions may capture only a relatively small fraction of the total biological variability in the full multi-omic dataset.
+
+## Cross-omics PCA discussion
+
+1.  **Which data type shows the strongest sample separation?**\
+    This depends on the plots. Strong separation appears as clear clusters or gradients in PC1/PC2.
+
+2.  **Do the same samples behave as outliers across multiple omics layers?**\
+    If yes, this may indicate unusual biology, sample quality issues, or metadata problems. If outliers occur in only one omics layer, the cause may be assay-specific.
+
+3.  **Are there signals that appear in one data type but not another?**\
+    Yes, this is common. Different omics layers capture different aspects of disease biology.
+
+4.  **Why might multi-omics integration be useful here?**\
+    Integration can identify patterns shared across data types, separate shared from modality-specific variation, and link molecular layers to phenotypes more systematically than separate analyses.
+
+## Concatenated PCA questions
+
+1.  **Which PCA plot from the single-omic data resembles the PCA from the concatenated data the most? Why? And what could be the problem?**\
+
+    The PCA from RNAseq data. Potentially because the RNAseq dataset has the highest number of features. The problem is that the contribution from other omic data may be under-represented. Another problem is that we can only keep the samples present in all of the datasets, which may lose important information.
+
+# Wrap-up
+
+Today we worked through each omics data type separately:
+
+- **RNA-seq** required filtering, DESeq2 size-factor normalization, and variance-stabilizing transformation.
+- **Methylation M-values** were continuous and suitable for PCA after missing-value handling and feature filtering.
+- **Mutation status** was sparse and binary, requiring careful interpretation.
+- **Drug response** started as a long table and had to be summarized into a feature-by-sample matrix.
+- **CCA** provided a first example of relating two omics layers directly.
+- **Metadata** was essential for interpreting exploratory patterns.
+
+The central message is that multi-omics integration should not start with a black-box model. We first need to understand the individual data layers, their quality, their distributions, their missingness, and their dominant sources of variation.

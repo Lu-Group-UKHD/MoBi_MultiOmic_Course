@@ -1,0 +1,201 @@
+sampleID	centerID	sex	ethnicity	specimenType	vitalStatus	overallSurvival	diseaseStage	whiteBloodCellCount	FLT3_ITD	NPM1	responseToInductionTherapy	age
+AML_13_00007	1	Male	White	Bone Marrow Aspirate	Dead	595	Residual	0.6	positive	positive	Complete Response	36
+AML_14_00061	1	Male	White	Peripheral Blood	Dead	1238	Relapse	47.2	negative	negative	Complete Response	72
+AML_12_00051	1	Female	White	Bone Marrow Aspirate	Dead	707	Initial Diagnosis	17.9	positive	positive	Complete Response	55
+AML_13_00118	1	Male	White	Bone Marrow Aspirate	Dead	1378	Relapse	33.8	negative	positive	Complete Response	57
+AML_12_00127	1	Male	White	Leukapheresis	Dead	740	Initial Diagnosis	64.3	negative	positive	Complete Response	53
+AML_12_00150	7	Male	AdmixedBlack	Peripheral Blood	Unknown	0	Unknown	NA	negative	negative	NA	18
+AML_12_00294	1	Male	White	Leukapheresis	Dead	3	Initial Diagnosis	97	positive	negative	NA	72
+AML_13_00226	1	Female	White	Bone Marrow Aspirate	Alive	2806	Initial Diagnosis	6	negative	negative	Complete Response	83
+AML_13_00028	1	Male	White	Bone Marrow Aspirate	Dead	2531	Initial Diagnosis	21.7	negative	negative	Complete Response	24
+AML_13_00034	2	Female	White	Peripheral Blood	Dead	16	Initial Diagnosis	53	negative	negative	NA	61
+AML_13_00098	2	Female	Black	Bone Marrow Aspirate	Alive	1112	Initial Diagnosis	1.5	negative	positive	Complete Response	64
+AML_13_00123	1	Male	White	Peripheral Blood	Dead	9	Initial Diagnosis	82	negative	positive	NA	83
+AML_13_00145	2	Male	White	Peripheral Blood	Dead	194	Residual	24.4	positive	negative	Refractory	71
+AML_13_00149	1	Male	White	Bone Marrow Aspirate	Dead	267	Residual	8.5	negative	negative	Refractory	79
+AML_13_00150	1	Male	White	Peripheral Blood	Dead	404	Residual	14	negative	negative	Refractory	53
+AML_13_00157	1	Female	White	Bone Marrow Aspirate	Alive	2801	Initial Diagnosis	53.9	negative	positive	Complete Response	60
+AML_13_00163	1	Male	HispNative	Bone Marrow Aspirate	Alive	3041	Initial Diagnosis	13.8	negative	negative	Complete Response	24
+AML_13_00166	1	Male	White	Peripheral Blood	Dead	1020	Residual	19.5	negative	negative	Refractory	67
+AML_13_00186	1	Male	White	Bone Marrow Aspirate	Dead	126	Initial Diagnosis	11.8	negative	negative	NA	74
+AML_13_00195	1	Male	White	Bone Marrow Aspirate	Alive	2756	Initial Diagnosis	28	negative	positive	Complete Response	66
+AML_13_00202	3	Male	White	Bone Marrow Aspirate	Dead	752	Initial Diagnosis	22.79	negative	positive	NA	53
+AML_13_00204	1	Female	White	Bone Marrow Aspirate	Dead	7	Initial Diagnosis	9.8	positive	negative	Unknown	65
+AML_13_00232	1	Female	White	Bone Marrow Aspirate	Alive	2729	Initial Diagnosis	29.4	negative	negative	Complete Response	22
+AML_13_00236	1	Female	White	Peripheral Blood	Alive	3866	Residual	1.5	negative	negative	Complete Response	5
+AML_13_00253	1	Female	White	Peripheral Blood	Dead	273	Initial Diagnosis	7.9	negative	negative	Refractory	42
+AML_13_00268	1	Male	White	Peripheral Blood	Dead	113	Residual	40.8	negative	negative	Refractory	56
+AML_13_00270	1	Female	White	Peripheral Blood	Alive	540	Initial Diagnosis	8.8	negative	negative	Refractory	18
+AML_13_00281	4	Female	White	Peripheral Blood	Dead	189	Initial Diagnosis	8.7	negative	negative	Refractory	79
+AML_13_00338	4	Female	White	Peripheral Blood	Alive	2522	Relapse	4.3	negative	negative	Refractory	60
+AML_13_00354	4	Male	Asian	Peripheral Blood	Dead	330	Residual	16.2	negative	negative	Complete Response	73
+AML_13_00365	4	Female	White	Peripheral Blood	Dead	420	Initial Diagnosis	NA	positive	positive	Refractory	72
+AML_13_00454	2	Female	HispNative	Peripheral Blood	Alive	143	Initial Diagnosis	13.63	negative	negative	Complete Response i	31
+AML_13_00500	2	Male	White	Bone Marrow Aspirate	Dead	156	Initial Diagnosis	7.5	negative	negative	NA	71
+AML_13_00513	1	Male	White	Bone Marrow Aspirate	Dead	246	Initial Diagnosis	10.21	positive	positive	Complete Response	55
+AML_13_00551	2	Male	Black	Peripheral Blood	Alive	1487	Residual	3.2	negative	negative	Refractory	51
+AML_13_00552	3	Male	White	Peripheral Blood	Dead	415	Residual	NA	positive	negative	Refractory	75
+AML_13_00563	4	Female	White	Peripheral Blood	Alive	1021	Initial Diagnosis	NA	positive	negative	Complete Response	64
+AML_13_00573	1	Male	White	Peripheral Blood	Dead	333	Residual	13.22	negative	negative	NA	86
+AML_13_00535	2	Female	White	Peripheral Blood	Dead	259	Initial Diagnosis	4.06	negative	positive	Complete Response	51
+AML_13_00601	2	Male	White	Bone Marrow Aspirate	Dead	116	NA	NA	negative	negative	Unknown	NA
+AML_13_00615	4	Female	HispNative	Bone Marrow Aspirate	Alive	239	Initial Diagnosis	12.9	negative	negative	Complete Response	62
+AML_13_00658	1	Male	White	Bone Marrow Aspirate	Alive	2769	Initial Diagnosis	11.93	negative	positive	Complete Response	60
+AML_14_00023	1	Female	White	Peripheral Blood	Alive	29	Initial Diagnosis	35.91	negative	positive	Complete Response	74
+AML_14_00063	3	Female	White	Peripheral Blood	Dead	10	Initial Diagnosis	NA	negative	negative	NA	80
+AML_14_00126	3	Male	White	Peripheral Blood	Unknown	0	Initial Diagnosis	NA	negative	negative	NA	46
+AML_14_00081	1	Female	White	Bone Marrow Aspirate	Dead	295	Initial Diagnosis	12.87	negative	negative	Complete Response	71
+AML_14_00092	1	Female	White	Bone Marrow Aspirate	Alive	2438	Initial Diagnosis	63.75	negative	positive	Complete Response	63
+AML_14_00141	4	Male	Asian	Peripheral Blood	Dead	357	Initial Diagnosis	NA	negative	negative	Complete Response	85
+AML_14_00175	3	Male	White	Peripheral Blood	Dead	1005	Initial Diagnosis	3.6	negative	negative	Complete Response	46
+AML_14_00193	2	Male	White	Peripheral Blood	Dead	421	Initial Diagnosis	8.2	negative	negative	Unknown	57
+AML_14_00212	1	Female	HispNative	Peripheral Blood	Alive	3902	NA	31.85	negative	negative	UNKNOWN	47
+AML_14_00240	2	Female	Black	Peripheral Blood	Dead	37	Initial Diagnosis	51.64	negative	negative	NA	78
+AML_14_00259	1	Female	White	Bone Marrow Aspirate	Dead	439	Initial Diagnosis	58.86	positive	positive	Complete Response	65
+AML_14_00279	4	Female	HispNative	Bone Marrow Aspirate	Alive	36	Initial Diagnosis	28.1	negative	negative	Complete Response	52
+AML_14_00329	3	Female	White	Peripheral Blood	Dead	323	Initial Diagnosis	44.76	negative	negative	Complete Response	72
+AML_14_00331	2	Male	HispNative	Peripheral Blood	Alive	71	Initial Diagnosis	152.75	negative	positive	Complete Response	61
+AML_14_00335	4	Female	White	Peripheral Blood	Dead	263	Initial Diagnosis	NA	negative	negative	Refractory	79
+AML_14_00355	4	Male	White	Peripheral Blood	Dead	705	Initial Diagnosis	NA	positive	negative	Refractory	78
+AML_14_00380	3	Male	White	Peripheral Blood	Dead	30	Initial Diagnosis	NA	negative	negative	UNKNOWN	67
+AML_14_00423	4	Female	White	Peripheral Blood	Alive	839	Initial Diagnosis	34.4	negative	negative	Complete Response	51
+AML_14_00434	4	Female	White	Bone Marrow Aspirate	Unknown	0	Initial Diagnosis	137.6	negative	negative	Unknown	69
+AML_14_00447	1	Female	HispNative	Peripheral Blood	Dead	1705	Initial Diagnosis	49.29	negative	negative	Complete Response	48
+AML_14_00473	1	Female	White	Peripheral Blood	Dead	167	Initial Diagnosis	10.75	negative	negative	Complete Response	62
+AML_14_00496	3	Male	White	Peripheral Blood	Alive	1022	Initial Diagnosis	16.11	negative	positive	Complete Response	55
+AML_14_00504	2	Male	White	Bone Marrow Aspirate	Alive	1156	Initial Diagnosis	NA	positive	positive	Complete Response	35
+AML_14_00514	2	Male	White	Peripheral Blood	Dead	53	Initial Diagnosis	45.6	negative	negative	NA	71
+AML_14_00537	2	Male	HispNative	Peripheral Blood	Alive	74	Initial Diagnosis	NA	negative	negative	Unknown	17
+AML_14_00564	1	Male	White	Bone Marrow Aspirate	Dead	35	Initial Diagnosis	5.92	negative	negative	Unknown	57
+AML_14_00581	4	Female	Black	Peripheral Blood	Dead	70	Initial Diagnosis	29.1	negative	negative	Refractory	68
+AML_14_00599	1	Male	White	Bone Marrow Aspirate	Dead	470	Initial Diagnosis	2.05	negative	negative	Refractory	69
+AML_14_00618	2	Male	White	Bone Marrow Aspirate	Alive	344	Residual	13.8	negative	negative	Refractory	78
+AML_14_00632	1	Female	White	Bone Marrow Aspirate	Alive	2485	Initial Diagnosis	6.44	negative	negative	Refractory	64
+AML_14_00643	1	Male	Asian	Bone Marrow Aspirate	Alive	1348	Initial Diagnosis	8.15	negative	negative	Refractory	37
+AML_14_00658	3	Female	White	Bone Marrow Aspirate	Dead	254	Initial Diagnosis	89.17	positive	positive	Complete Response	59
+AML_14_00672	7	Male	White	Bone Marrow Aspirate	Alive	5397	NA	NA	negative	negative	NA	77
+AML_14_00730	1	Female	HispNative	Bone Marrow Aspirate	Alive	2505	Initial Diagnosis	1.9	negative	negative	Complete Response	40
+AML_14_00735	4	Male	Asian	Bone Marrow Aspirate	Dead	47	Initial Diagnosis	NA	positive	positive	Refractory	83
+AML_14_00774	4	Male	White	Bone Marrow Aspirate	Dead	67	Initial Diagnosis	30	positive	negative	Refractory	84
+AML_14_00787	1	Male	White	Bone Marrow Aspirate	Alive	2423	Initial Diagnosis	427.46	negative	negative	Complete Response	61
+AML_14_00831	2	Male	HispNative	Bone Marrow Aspirate	Alive	211	Initial Diagnosis	4.95	negative	negative	Complete Response	26
+AML_14_00901	1	Male	White	Bone Marrow Aspirate	Dead	104	Initial Diagnosis	13.68	negative	negative	Refractory	61
+AML_15_00043	5	Female	White	Peripheral Blood	Alive	1105	Remission	NA	negative	negative	Refractory	44
+AML_15_00051	1	Female	White	Bone Marrow Aspirate	Dead	1715	Initial Diagnosis	66.67	negative	positive	Complete Response	66
+AML_15_00084	1	Female	White	Peripheral Blood	Dead	35	Residual	17.63	negative	negative	NA	82
+AML_15_00123	2	Male	White	Peripheral Blood	Alive	1016	Initial Diagnosis	48.03	positive	positive	Complete Response	42
+AML_15_00159	2	Male	White	Bone Marrow Aspirate	Alive	5	Initial Diagnosis	12.8	negative	negative	NA	75
+AML_15_00167	1	Male	White	Bone Marrow Aspirate	Dead	35	Initial Diagnosis	93.94	negative	positive	Complete Response	42
+AML_15_00229	1	Male	White	Bone Marrow Aspirate	Alive	35	Initial Diagnosis	18.25	positive	negative	Complete Response	25
+AML_15_00248	2	Male	HispNative	Bone Marrow Aspirate	Alive	195	Initial Diagnosis	20.8	negative	negative	Complete Response	61
+AML_15_00261	1	Female	White	Bone Marrow Aspirate	Dead	245	Initial Diagnosis	22.95	positive	negative	Refractory	43
+AML_15_00269	2	Male	White	Peripheral Blood	Dead	430	Initial Diagnosis	3.6	negative	positive	Complete Response	59
+AML_15_00300	5	Male	White	Bone Marrow Aspirate	Alive	31	Initial Diagnosis	5.6	negative	negative	NA	76
+AML_15_00287	1	Male	White	Peripheral Blood	Dead	167	Residual	25.63	negative	negative	NA	85
+AML_15_00320	2	Female	White	Bone Marrow Aspirate	Dead	81	Initial Diagnosis	26.5	positive	positive	Complete Response i	57
+AML_15_00331	5	Male	White	Bone Marrow Aspirate	Dead	581	Initial Diagnosis	29	negative	negative	Complete Response	60
+AML_15_00338	2	Female	White	Bone Marrow Aspirate	Alive	952	Initial Diagnosis	NA	negative	negative	Complete Response	42
+AML_15_00371	2	Male	White	Bone Marrow Aspirate	Dead	324	Residual	2.3	negative	negative	Refractory	75
+AML_15_00396	1	Female	HispNative	Bone Marrow Aspirate	Dead	781	Relapse	3.87	negative	negative	Complete Response	3
+AML_15_00471	3	Male	White	Peripheral Blood	Dead	250	Initial Diagnosis	33	negative	negative	Refractory	69
+AML_15_00470	1	Male	HispNative	Bone Marrow Aspirate	Alive	2104	Initial Diagnosis	7.19	positive	negative	NA	32
+AML_15_00491	1	Male	White	Peripheral Blood	Dead	50	Initial Diagnosis	NA	negative	negative	NA	83
+AML_15_00556	1	Male	White	Peripheral Blood	Alive	2095	Initial Diagnosis	133.63	positive	negative	Refractory	10
+AML_15_00559	5	Female	HispNative	Peripheral Blood	Dead	448	Residual	10.7	negative	negative	Refractory	42
+AML_15_00595	2	Male	White	Bone Marrow Aspirate	Alive	45	Initial Diagnosis	9.4	positive	negative	Unknown	55
+AML_15_00608	5	Female	White	Peripheral Blood	Alive	884	Initial Diagnosis	4.8	negative	negative	Complete Response	61
+AML_15_00616	1	Female	White	Peripheral Blood	Dead	314	Initial Diagnosis	11.01	negative	negative	Complete Response	68
+AML_15_00650	1	Male	White	Bone Marrow Aspirate	Dead	80	Initial Diagnosis	40.53	negative	negative	NA	85
+AML_15_00670	1	Male	White	Peripheral Blood	Alive	2182	Initial Diagnosis	84.96	positive	negative	Complete Response	61
+AML_15_00674	5	Female	White	Bone Marrow Aspirate	Dead	36	Initial Diagnosis	37.2	negative	negative	Complete Response	54
+AML_15_00680	1	Male	White	Bone Marrow Aspirate	Dead	861	Initial Diagnosis	134.36	positive	positive	Complete Response	68
+AML_15_00701	1	Female	White	Peripheral Blood	Dead	302	Residual	206.64	negative	negative	Refractory	50
+AML_15_00702	1	Female	White	Bone Marrow Aspirate	Alive	1937	Initial Diagnosis	12.78	negative	negative	Complete Response	35
+AML_15_00724	3	Male	HispNative	Bone Marrow Aspirate	Alive	762	Initial Diagnosis	12	positive	positive	Refractory	51
+AML_15_00717	1	Male	White	Bone Marrow Aspirate	Alive	1891	Initial Diagnosis	16.84	negative	positive	Complete Response	61
+AML_15_00756	1	Male	White	Bone Marrow Aspirate	Alive	552	Initial Diagnosis	24.98	negative	negative	Complete Response	36
+AML_15_00763	3	Male	White	Peripheral Blood	Alive	747	Initial Diagnosis	NA	negative	negative	Complete Response	23
+AML_15_00764	3	Male	White	Peripheral Blood	Dead	717	Relapse	34	positive	negative	Refractory	40
+AML_15_00766	5	Male	White	Peripheral Blood	Dead	11	Initial Diagnosis	21.6	negative	negative	NA	71
+AML_15_00767	2	Male	White	Bone Marrow Aspirate	Dead	347	Initial Diagnosis	5.79	negative	negative	NA	78
+AML_15_00807	1	Female	HispNative	Peripheral Blood	Alive	2083	Initial Diagnosis	NA	negative	negative	Complete Response	14
+AML_15_00813	1	Female	White	Bone Marrow Aspirate	Dead	128	Initial Diagnosis	137.54	negative	negative	Refractory	53
+AML_15_00819	1	Male	White	Bone Marrow Aspirate	Dead	629	Initial Diagnosis	24.64	negative	negative	Complete Response	64
+AML_15_00821	1	Male	White	Bone Marrow Aspirate	Dead	231	Remission	8.94	negative	negative	Refractory	66
+AML_15_00903	3	Male	White	Peripheral Blood	Dead	36	Residual	19.64	negative	negative	NA	73
+AML_15_00912	6	Female	White	Bone Marrow Aspirate	Dead	151	Residual	14.3	negative	negative	NA	77
+AML_15_00929	3	Female	White	Bone Marrow Aspirate	Dead	425	Remission	10.08	negative	negative	Refractory	50
+AML_15_00965	1	Female	White	Peripheral Blood	Alive	2027	Initial Diagnosis	67.36	negative	positive	Refractory	61
+AML_15_00975	6	Female	White	Peripheral Blood	Alive	37	Initial Diagnosis	7.7	positive	negative	Unknown	70
+AML_16_00001	1	Female	White	Peripheral Blood	Alive	2075	Initial Diagnosis	20.44	negative	negative	Complete Response	36
+AML_16_00004	1	Female	White	Peripheral Blood	Dead	268	Initial Diagnosis	1.36	negative	negative	NA	82
+AML_16_00026	3	Male	White	Bone Marrow Aspirate	Alive	634	Initial Diagnosis	31.02	negative	positive	Complete Response i	56
+AML_16_00027	2	Male	AdmixedWhite	Bone Marrow Aspirate	Alive	668	Initial Diagnosis	181.08	positive	negative	Complete Response	55
+AML_16_00035	2	Female	White	Peripheral Blood	Alive	671	Initial Diagnosis	175.91	negative	positive	Complete Response	54
+AML_16_00041	4	Male	White	Peripheral Blood	Dead	4	Initial Diagnosis	96	positive	positive	NA	70
+AML_16_00056	1	Female	White	Bone Marrow Aspirate	Alive	1910	Initial Diagnosis	25.02	negative	positive	Complete Response	51
+AML_16_00087	1	Female	White	Leukapheresis	Dead	861	Initial Diagnosis	181.66	positive	positive	Complete Response	24
+AML_16_00067	2	Female	HispNative	Peripheral Blood	Alive	653	Initial Diagnosis	6.63	negative	negative	Complete Response	53
+AML_16_00075	4	Male	White	Bone Marrow Aspirate	Dead	238	Initial Diagnosis	1.6	negative	negative	Refractory	69
+AML_16_00078	2	Female	White	Bone Marrow Aspirate	Alive	34	Initial Diagnosis	56.03	negative	positive	NA	67
+AML_16_00077	2	Male	White	Peripheral Blood	Dead	605	Residual	240.43	negative	negative	Complete Response	80
+AML_16_00226	1	Male	White	Peripheral Blood	Dead	152	Residual	116.52	negative	negative	NA	79
+AML_16_00102	4	Male	White	Bone Marrow Aspirate	Alive	95	Initial Diagnosis	125.9	negative	positive	Complete Response	72
+AML_16_00120	3	Male	White	Peripheral Blood	Alive	604	Initial Diagnosis	55.42	positive	negative	Complete Response	36
+AML_16_00129	5	Female	White	Bone Marrow Aspirate	Alive	673	Initial Diagnosis	18.3	negative	positive	Complete Response	42
+AML_16_00132	6	Male	White	Peripheral Blood	Alive	539	Relapse	2.1	negative	negative	Complete Response	75
+AML_16_00143	4	Male	HispNative	Bone Marrow Aspirate	Alive	192	Initial Diagnosis	100.2	negative	negative	Complete Response	58
+AML_16_00145	2	Male	Asian	Bone Marrow Aspirate	Dead	159	Initial Diagnosis	3.09	negative	negative	NA	75
+AML_16_00217	1	Male	White	Bone Marrow Aspirate	Dead	596	Residual	10	negative	negative	NA	86
+AML_16_00220	3	Male	White	Bone Marrow Aspirate	Alive	579	Initial Diagnosis	16.24	negative	positive	Complete Response	67
+AML_16_00249	6	Male	White	Bone Marrow Aspirate	Alive	302	Residual	25	negative	negative	NA	75
+AML_16_00278	5	Male	White	Bone Marrow Aspirate	Alive	636	Initial Diagnosis	53.3	positive	positive	Complete Response	64
+AML_16_00289	1	Female	White	Bone Marrow Aspirate	Dead	142	Initial Diagnosis	166.91	positive	positive	Complete Response i	65
+AML_16_00292	1	Female	White	Bone Marrow Aspirate	Dead	4	Initial Diagnosis	122.89	positive	positive	Unknown	73
+AML_16_00316	7	Male	HispNative	Bone Marrow Aspirate	Unknown	0	Residual	NA	negative	negative	NA	73
+AML_16_00339	1	Female	White	Bone Marrow Aspirate	Dead	33	NA	109.77	positive	negative	Unknown	70
+AML_16_00344	1	Male	White	Bone Marrow Aspirate	Dead	597	Initial Diagnosis	4.4	negative	positive	Complete Response	59
+AML_16_00354	3	Male	White	Bone Marrow Aspirate	Dead	1	Initial Diagnosis	70.01	negative	negative	NA	79
+AML_16_00410	1	Male	White	Bone Marrow Aspirate	Alive	1719	Initial Diagnosis	9.87	negative	negative	Complete Response	62
+AML_16_00465	1	Male	HispNative	Leukapheresis	Alive	1905	Initial Diagnosis	214.49	positive	negative	Refractory	12
+AML_16_00479	3	Female	White	Peripheral Blood	Dead	232	Residual	NA	negative	negative	Refractory	40
+AML_16_00494	1	Female	White	Bone Marrow Aspirate	Dead	148	Initial Diagnosis	104.44	negative	negative	Refractory	72
+AML_16_00504	2	Female	White	Bone Marrow Aspirate	Dead	259	Residual	5.54	negative	positive	Complete Response	60
+AML_16_00510	1	Male	HispNative	Bone Marrow Aspirate	Dead	291	Initial Diagnosis	6.13	negative	negative	Refractory	34
+AML_16_00519	1	Male	White	Bone Marrow Aspirate	Dead	582	Initial Diagnosis	8.98	negative	negative	Complete Response	47
+AML_16_00524	1	Female	White	Peripheral Blood	Alive	1910	Initial Diagnosis	3.21	negative	negative	Complete Response i	34
+AML_16_00525	1	Female	Asian	Bone Marrow Aspirate	Alive	1610	Initial Diagnosis	9.27	negative	negative	Refractory	26
+AML_16_00541	1	Female	White	Peripheral Blood	Dead	364	NA	7.14	negative	negative	Unknown	63
+AML_16_00540	3	Female	White	Peripheral Blood	Dead	13	Initial Diagnosis	129.5	positive	negative	UNKNOWN	66
+AML_16_00547	1	Male	HispNative	Peripheral Blood	Dead	65	Initial Diagnosis	3.88	negative	negative	Complete Response	29
+AML_16_00564	6	Female	White	Bone Marrow Aspirate	Unknown	0	NA	35.1	negative	negative	NA	81
+AML_16_00595	3	Male	White	Peripheral Blood	Dead	63	Initial Diagnosis	6.69	negative	negative	Refractory	58
+AML_16_00627	7	Male	White	Bone Marrow Aspirate	Alive	304	NA	NA	negative	negative	UNKNOWN	66
+AML_16_00705	5	Male	White	Peripheral Blood	Dead	1824	Relapse	NA	negative	negative	Complete Response	64
+AML_16_00708	2	Male	HispNative	Bone Marrow Aspirate	Alive	305	Residual	5.05	positive	negative	NA	71
+AML_16_00771	6	Female	HispNative	Bone Marrow Aspirate	Dead	157	Residual	26.4	negative	negative	Refractory	34
+AML_16_00815	1	Female	White	Bone Marrow Aspirate	Alive	1801	Initial Diagnosis	34.6	negative	positive	Refractory	60
+AML_16_00867	1	Female	White	Bone Marrow Aspirate	Dead	8	Initial Diagnosis	30.54	positive	positive	Unknown	61
+AML_16_00950	1	Female	White	Peripheral Blood	Dead	604	Residual	19.67	negative	positive	NA	85
+AML_16_00951	3	Male	White	Peripheral Blood	Alive	427	Initial Diagnosis	NA	negative	negative	Complete Response	42
+AML_16_00981	3	Female	White	Peripheral Blood	Alive	255	Initial Diagnosis	NA	negative	negative	Complete Response	69
+AML_16_01004	2	Male	White	Peripheral Blood	Alive	486	Residual	25.85	negative	negative	Complete Response	70
+AML_16_01047	6	Female	White	Peripheral Blood	Dead	944	Relapse	108.9	positive	positive	Complete Response	69
+AML_16_01055	1	Female	White	Bone Marrow Aspirate	Alive	1731	Initial Diagnosis	40.02	negative	negative	Refractory	56
+AML_16_01080	1	Female	White	Peripheral Blood	Alive	1542	Initial Diagnosis	34.36	positive	negative	Complete Response	69
+AML_16_01082	1	Male	White	Peripheral Blood	Alive	35	Initial Diagnosis	2.16	negative	negative	Complete Response	68
+AML_16_01098	2	Female	White	Bone Marrow Aspirate	Alive	369	Initial Diagnosis	99.87	positive	positive	Complete Response	44
+AML_16_01102	2	Female	White	Peripheral Blood	Alive	373	Initial Diagnosis	44.63	negative	negative	NA	72
+AML_16_01109	5	Male	Black	Peripheral Blood	Alive	402	Initial Diagnosis	93.2	negative	negative	Complete Response	33
+AML_16_01121	3	Male	White	Bone Marrow Aspirate	Alive	398	Initial Diagnosis	115.15	positive	positive	Complete Response	61
+AML_16_01185	5	Male	White	Bone Marrow Aspirate	Dead	201	Initial Diagnosis	119.6	positive	negative	Complete Response	50
+AML_16_01191	3	Female	White	Peripheral Blood	Alive	338	Initial Diagnosis	NA	negative	negative	Complete Response	65
+AML_16_01201	1	Male	White	Bone Marrow Aspirate	Dead	543	Residual	118	negative	negative	Refractory	54
+AML_16_01219	1	Male	White	Bone Marrow Aspirate	Alive	214	Initial Diagnosis	18.71	negative	negative	Complete Response	47
+AML_16_01223	2	Male	White	Peripheral Blood	Dead	31	Initial Diagnosis	24.23	negative	negative	NA	73
+AML_16_01267	7	Female	AdmixedBlack	Peripheral Blood	Alive	361	Relapse	NA	negative	positive	NA	62
+AML_16_01272	6	Male	White	Bone Marrow Aspirate	Dead	80	Residual	2.2	negative	negative	Refractory	64
+AML_17_00025	3	Female	White	Peripheral Blood	Alive	296	Initial Diagnosis	190	positive	positive	Complete Response	39
+AML_17_00072	1	Male	White	Peripheral Blood	Dead	362	Residual	92.55	negative	negative	Refractory	70
+AML_17_00093	2	Female	Black	Peripheral Blood	Alive	35	Initial Diagnosis	41.91	positive	negative	Unknown	43
+AML_17_00094	6	Male	White	Bone Marrow Aspirate	Alive	307	Initial Diagnosis	19.3	negative	negative	Complete Response	57

@@ -1,0 +1,1014 @@
+---
+title: "Day 2 Practical: Multi-Omics Factor Analysis with MOFA2"
+subtitle: "Integrative Multi-Omic Data Analysis for Biological and Biomedical Data"
+author: "Dr. Junyan Lu and teaching team"
+date: "May 2026"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: true
+  message: false
+  warning: false
+editor: visual
+---
+
+# Learning goals
+
+This practical is a continuation of the Day 1 single-omics practical. On Day 1, we inspected each omics data type separately, performed basic preprocessing and quality control, and saved a processed multi-omics object for MOFA.
+
+Today we will use **MOFA2** to integrate four data modalities from the same CLL-like cohort:
+
+1.  RNA-seq expression
+2.  DNA methylation M-values
+3.  Somatic mutation status
+4.  Ex vivo drug response
+
+By the end of this practical, you should be able to:
+
+- create a MOFA object from several omics matrices;
+- choose appropriate likelihoods for different data types;
+- train a MOFA model;
+- inspect variance explained by factors and views;
+- associate latent factors with sample metadata;
+- interpret factors using feature weights, factor values, and input data;
+- distinguish biological factors from possible technical factors;
+- use MOFA factors for downstream analyses such as subgroup prediction and clinical outcome association.
+
+::: callout-note
+## Connection to Day 1
+
+This script expects the file `day1_processed_omics_for_mofa.rds`, which was generated at the end of the Day 1 practical. The object contains processed matrices with **features in rows** and **samples in columns**, plus a metadata table.
+:::
+
+# Introduction
+
+The data consist of blood samples from patients with chronic lymphocytic leukemia (CLL) profiles. Four molecular or functional data types are available: DNA methylation, bulk RNA-seq, somatic mutations, and ex vivo drug response. This structure is similar to the CLL multi-omics example used in the original MOFA2 tutorial, but here we use the processed matrices generated from our Day 1 practical.
+
+The central question is:
+
+> Can we identify latent molecular factors that summarize coordinated variation across multiple omics layers and help us interpret clinically relevant patient heterogeneity?
+
+MOFA is useful here because it extends the logic of PCA from one data matrix to multiple matrices. Instead of finding principal components in a single table, MOFA learns latent factors that can explain variation in one or several omics views.
+
+# Load packages
+
+Make sure that you have installed the [MOFA2](https://github.com/bioFAM/MOFA2) package before running this practical.
+
+```{r}
+#| label: global-options
+#| echo: false
+knitr::opts_chunk$set(
+  cache = TRUE,
+  autodep = TRUE,
+  fig.width = 7,
+  fig.height = 5
+)
+#reticulate::use_python("/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12")
+```
+
+```{r}
+#| label: packages
+packages <- c(
+  "data.table",
+  "tidyverse",
+  "matrixStats",
+  "knitr",
+  "MOFA2",
+  "ggpubr"
+)
+
+missing_packages <- packages[!vapply(packages, requireNamespace, logical(1), quietly = TRUE)]
+
+if (length(missing_packages) > 0) {
+  message("The following packages are missing: ", paste(missing_packages, collapse = ", "))
+  message("Please install them before running the practical.")
+}
+
+library(data.table)
+library(tidyverse)
+library(matrixStats)
+library(knitr)
+library(MOFA2)
+library(ggpubr)
+```
+
+# Load processed data from Day 1
+
+The data are stored as a list. The first four elements are matrices, with features in rows and samples in columns. The last element is the sample metadata.
+
+```{r}
+#| label: load-day1-object
+processed_file <- "../day1/day1_processed_omics_for_mofa.rds"
+
+if (!file.exists(processed_file)) {
+  stop(
+    "The file 'day1_processed_omics_for_mofa.rds' was not found. ",
+    "Please run the Day 1 practical first, or copy the processed RDS file into this folder."
+  )
+}
+
+mofa_day2_data <- readRDS(processed_file)
+
+names(mofa_day2_data)
+```
+
+```{r}
+#| label: extract-data
+CLL_data <- list(
+  RNAseq = mofa_day2_data$mRNA,
+  Methylation = mofa_day2_data$Methylation,
+  Mutations = mofa_day2_data$Mutations,
+  DrugResponse = mofa_day2_data$Drugs
+)
+
+CLL_metadata <- mofa_day2_data$metadata
+```
+
+The matrices should all contain the same samples, although not necessarily in the same order. Here we check this explicitly.
+
+```{r}
+#| label: check-samples
+sample_sets <- lapply(CLL_data, colnames)
+common_samples <- Reduce(intersect, sample_sets)
+
+sample_summary <- tibble(
+  view = names(CLL_data),
+  n_samples = vapply(sample_sets, length, numeric(1)),
+  n_common_samples = length(common_samples)
+)
+
+sample_summary |> kable()
+```
+
+# Inspect the input data
+
+Before running MOFA, it is useful to remind ourselves what each view represents.
+
+## RNA-seq expression
+
+The RNA-seq data were processed on Day 1 using DESeq2, including size-factor normalization and variance-stabilizing transformation. Therefore, this matrix is already approximately suitable for Gaussian modeling and exploratory multi-omics integration.
+
+```{r}
+#| label: inspect-rna
+hist(as.numeric(CLL_data$RNAseq), breaks = 50, main = "RNA-seq VST values", xlab = "VST expression")
+```
+
+## DNA methylation
+
+The methylation data are M-values. M-values are continuous and usually more suitable for downstream statistical modeling than beta values.
+
+```{r}
+#| label: inspect-methylation
+hist(as.numeric(CLL_data$Methylation), breaks = 50, main = "DNA methylation M-values", xlab = "M-value")
+```
+
+## Drug response
+
+The drug response matrix contains viability measurements. Depending on preprocessing, each feature may correspond to a drug, or a drug-concentration pair.
+
+```{r}
+#| label: inspect-drug-response
+hist(as.numeric(CLL_data$DrugResponse), breaks = 50, main = "Drug response values", xlab = "Viability / response value")
+```
+
+## Somatic mutations
+
+The mutation matrix is binary or near-binary. For this view, we will use a Bernoulli likelihood in MOFA.
+
+```{r}
+#| label: inspect-mutations
+table(as.numeric(CLL_data$Mutations), useNA = "ifany")
+```
+
+::: callout-question
+## Question 1
+
+Why should the mutation view use a different likelihood from the RNA-seq, methylation, and drug response views?
+:::
+
+# Create the MOFA object and train the model
+
+## Create the MOFA object
+
+MOFA does not require that all the samples have all the omic measurement. However, to create MOFA object from a list of matrices, all the matrices should have the same column name and order. We can simply put column with all NA values for the samples not measured by a certain omic.
+
+```{r}
+all_samples <- unique(c(colnames(CLL_data$Mutations),
+                        colnames(CLL_data$mRNA),
+                        colnames(CLL_data$Methylation),
+                        colnames(CLL_data$Drugs)))
+CLL_data <- lapply(CLL_data, function(x) {
+    x <- x[,match(all_samples, colnames(x))]
+    colnames(x) <- all_samples
+    x
+})
+```
+
+```{r}
+#| label: create-mofa
+MOFAobject <- create_mofa(CLL_data)
+MOFAobject
+```
+
+::: callout-tip
+There are other ways to create a MOFA object, e.g. from a long table format. Please check out all the method by ?create_mofa() and feel free to try different methods to create a MOFA object.
+:::
+
+## Plot data overview
+
+This plot shows the number of views, the number of samples, the number of features, and the amount of missing information.
+
+```{r}
+#| label: plot-data-overview
+plot_data_overview(MOFAobject)
+```
+
+::: callout-question
+## Question 2
+
+What does the grey lines mean in this plot? How does MOFA deal with them?
+:::
+
+## Define MOFA options
+
+Two important model options are:
+
+- **num_factors**: the maximum number of latent factors to learn.
+- **likelihoods**: the observation model for each view. Continuous data usually use `gaussian`; binary data should use `bernoulli`.
+
+```{r}
+#| label: model-options
+model_opts <- get_default_model_options(MOFAobject)
+model_opts$num_factors <- 10
+model_opts$likelihoods["Mutations"] <- "bernoulli"
+model_opts
+```
+
+We also set a few training options. For a teaching practical, it is useful to keep the model small enough to train quickly.
+
+```{r}
+#| label: training-options
+train_opts <- get_default_training_options(MOFAobject)
+train_opts$seed <- 123
+train_opts$maxiter <- 1000
+train_opts$convergence_mode <- "medium"
+train_opts
+```
+
+## Prepare and train the MOFA model
+
+```{r}
+#| label: prepare-mofa
+MOFAobject <- prepare_mofa(
+  MOFAobject,
+  model_options = model_opts,
+  training_options = train_opts
+)
+```
+
+Training may take several minutes depending on the computer and installation. If `use_basilisk = FALSE` fails because of a Python environment issue, try `use_basilisk = TRUE`.
+
+```{r}
+#| label: train-mofa
+#| message: false
+#| warning: false
+MOFAobject <- run_mofa(MOFAobject, use_basilisk = FALSE)
+
+save(MOFAobject, file = "MOFAobject_day2.RData")
+```
+
+# Add sample metadata to the model
+
+The metadata must contain a column called `sample` with sample IDs. We also create numeric versions of selected variables so that we can correlate them with MOFA factors.
+
+Important metadata columns include:
+
+- **Gender**: biological sex recorded as `m` or `f`.
+- **age**: age in years.
+- **TTT**: time to next treatment.
+- **OS**: overall survival time.
+- **treatedAfter**: whether the patient received treatment after sampling.
+- **died**: whether the patient died during follow-up.
+- **IGHV**: IGHV mutation status.
+- **trisomy12**: trisomy 12 status.
+- **RNAseq_batch**: RNA-seq batch indicator.
+
+```{r}
+#| label: metadata-for-mofa
+CLL_metadata <- CLL_metadata |>
+  mutate(
+    sex = factor(sex),
+    age = as.numeric(age),
+    treatment = as.factor(treatment),
+    treatedAfter = as.logical(treatedAfter),
+    died = as.logical(died),
+    IGHV = factor(IGHV),
+    trisomy12 = factor(trisomy12),
+    RNAseq_batch = factor(RNAseq_batch),
+    Methylation_batch = factor(Methylation_batch)
+  )
+
+head(CLL_metadata) |> kable()
+```
+
+```{r}
+#| label: add-metadata
+model_samples <- samples_metadata(MOFAobject)$sample
+CLL_metadata <- CLL_metadata |>
+  arrange(match(sample, model_samples))
+
+stopifnot(identical(CLL_metadata$sample, model_samples))
+
+samples_metadata(MOFAobject) <- CLL_metadata
+```
+
+# Variance decomposition analysis
+
+## Variance explained by factor and view
+
+The variance decomposition plot is one of the most important outputs of a MOFA analysis. It shows how much variance each factor explains in each data modality.
+
+```{r}
+#| label: variance-explained
+plot_variance_explained(MOFAobject, max_r2 = 10)
+```
+
+::: callout-question
+## Question 3
+
+Which factors explain variation in multiple views? Which factors appear to be view-specific? If you could profile only one molecular layer, which view would you choose to capture the largest number of sources of variation?
+:::
+
+```{r}
+#| label: variance-explained-total
+plot_variance_explained(MOFAobject, plot_total = TRUE)[[2]]
+```
+
+# Characterisation of MOFA factors
+
+There are several systematic strategies to interpret a MOFA factor:
+
+1.  Inspect **variance explained** by factor and view.
+2.  Test association between **factor values** and sample metadata.
+3.  Inspect **factor values** across samples.
+4.  Inspect **feature weights** for each view.
+5.  Go back to the input data and visualize high-weight features.
+6.  Ask whether the factor is likely biological, technical, or ambiguous.
+
+## Association between factors and sample metadata
+
+Here we test whether factor values are associated with selected metadata variables. This process is very similar to the metadata-assisted QC process we did for the single-omic data.
+
+```{r}
+#| label: factor-covariate-association
+#| fig-height: 6
+#| fig-width: 6
+correlate_factors_with_covariates(
+  MOFAobject,
+  covariates = c(
+    "sex",
+    "age",
+    "died",
+    "treatedAfter",
+    "IGHV",
+    "trisomy12",
+    "RNAseq_batch",
+    "Methylation_batch",
+    "treatment"
+  ),
+  plot = "log_pval",
+)
+```
+
+::: callout-tip
+Can you adapt the metaQC() function we used before for testing the associations between MOFA factors and metadata variable?
+:::
+
+::: callout-question
+## Question 4
+
+Which factors are associated with known biological variables such as IGHV or trisomy 12? Which factors are associated with possible technical variables such as RNA-seq batch?
+:::
+
+## Inspect factor values
+
+Each factor assigns one value to each sample. Samples with strongly positive or strongly negative values represent opposite ends of the latent axis.
+
+```{r}
+#| label: plot-factor-1-2
+plot_factors(
+  MOFAobject,
+  factors = c(1, 2),
+  dot_size = 2.5
+)
+```
+
+Colour the same factor plot by metadata variables.
+
+```{r}
+#| label: factor12-ighv
+plot_factors(
+  MOFAobject,
+  factors = c(1, 2),
+  color_by = "IGHV",
+  dot_size = 2.5,
+  show_missing = TRUE
+)
+```
+
+```{r}
+#| label: factor12-trisomy12
+plot_factors(
+  MOFAobject,
+  factors = c(1, 2),
+  color_by = "trisomy12",
+  dot_size = 2.5,
+  show_missing = TRUE
+)
+```
+
+```{r}
+#| label: factor12-batch
+plot_factors(
+  MOFAobject,
+  factors = c(1, 2),
+  color_by = "RNAseq_batch",
+  dot_size = 2.5,
+  show_missing = TRUE
+)
+```
+
+# Characterisation of Factor 1
+
+We start with Factor 1 because it often explains a large source of variation. However, do not assume that Factor 1 is always the most biologically interesting factor. Always check the variance explained plot and metadata associations.
+
+## Factor 1 and metadata
+
+```{r}
+#| label: factor1-ighv
+plot_factor(
+  MOFAobject,
+  factors = 1,
+  color_by = "IGHV",
+  add_violin = TRUE,
+  dodge = TRUE,
+  show_missing = TRUE
+)
+```
+
+```{r}
+#| label: factor1-trisomy12
+plot_factor(
+  MOFAobject,
+  factors = 1,
+  color_by = "trisomy12",
+  add_violin = TRUE,
+  dodge = TRUE,
+  show_missing = TRUE
+)
+```
+
+```{r}
+#| label: factor1-batch
+plot_factor(
+  MOFAobject,
+  factors = 1,
+  color_by = "RNAseq_batch",
+  add_violin = TRUE,
+  dodge = TRUE,
+  show_missing = TRUE
+)
+```
+
+::: callout-question
+## Question 5
+
+Based on these plots, is Factor 1 more likely to represent a biological signal, a technical signal, or both?
+:::
+
+## Feature weights in the mutation view
+
+The mutation view is often a good place to start, because binary genomic events can be easier to interpret than thousands of expression or methylation features.
+
+```{r}
+#| label: factor1-mutation-weights
+plot_weights(
+  MOFAobject,
+  view = "Mutations",
+  factor = 1,
+  nfeatures = 10,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: factor1-mutation-top-weights
+plot_top_weights(
+  MOFAobject,
+  view = "Mutations",
+  factor = 1,
+  nfeatures = 10,
+  scale = TRUE
+)
+```
+
+Inspect the top mutation weights directly.
+
+```{r}
+#| label: factor1-mutation-table
+mutation_weights_f1 <- get_weights(
+  MOFAobject,
+  views = "Mutations",
+  factors = 1,
+  as.data.frame = TRUE
+) |>
+  arrange(desc(abs(value)))
+
+head(mutation_weights_f1, 15) |> kable()
+```
+
+## Feature weights in RNA-seq
+
+```{r}
+#| label: factor1-rna-weights
+plot_weights(
+  MOFAobject,
+  view = "RNAseq",
+  factor = 1,
+  nfeatures = 10,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: factor1-rna-top-weights
+plot_top_weights(
+  MOFAobject,
+  view = "RNAseq",
+  factor = 1,
+  nfeatures = 15,
+  scale = TRUE
+)
+```
+
+The weights tell us which RNA-seq features contribute most to the factor. We can then return to the original input data and visualize these features.
+
+```{r}
+#| label: factor1-rna-scatter
+plot_data_scatter(
+  MOFAobject,
+  view = "RNAseq",
+  factor = 1,
+  features = 4,
+  sign = "positive",
+  color_by = "IGHV"
+) + labs(y = "RNA-seq VST expression")
+```
+
+```{r}
+#| label: factor1-rna-heatmap
+plot_data_heatmap(
+  MOFAobject,
+  view = "RNAseq",
+  factor = 1,
+  features = 25,
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  show_rownames = TRUE,
+  show_colnames = FALSE,
+  scale = "row"
+)
+```
+
+## Feature weights in methylation
+
+```{r}
+#| label: factor1-methylation-top-weights
+plot_top_weights(
+  MOFAobject,
+  view = "Methylation",
+  factor = 1,
+  nfeatures = 15,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: factor1-methylation-scatter
+plot_data_scatter(
+  MOFAobject,
+  view = "Methylation",
+  factor = 1,
+  features = 4,
+  sign = "positive",
+  color_by = "IGHV"
+) + labs(y = "DNA methylation M-value")
+```
+
+## Feature weights in drug response
+
+```{r}
+#| label: factor1-drug-top-weights
+plot_top_weights(
+  MOFAobject,
+  view = "DrugResponse",
+  factor = 1,
+  nfeatures = 15,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: factor1-drug-scatter
+plot_data_scatter(
+  MOFAobject,
+  view = "DrugResponse",
+  factor = 1,
+  features = 4,
+  sign = "negative",
+  color_by = "IGHV"
+) + labs(y = "Drug response / viability")
+```
+
+::: callout-question
+## Question 6
+
+Choose one high-weight RNA-seq feature, one high-weight methylation feature, and one high-weight drug response feature for Factor 1. How do their values change along the factor axis? Are they consistent with the factor interpretation?
+:::
+
+# Characterisation of Factor 2
+
+Now repeat the same logic for Factor 2. In the original CLL MOFA tutorial, one of the first factors is strongly related to trisomy 12. In this dataset, check the output rather than assuming the same result.
+
+## Factor 2 and metadata
+
+```{r}
+#| label: factor2-ighv
+plot_factor(
+  MOFAobject,
+  factors = 2,
+  color_by = "IGHV",
+  add_violin = TRUE,
+  dodge = TRUE,
+  show_missing = TRUE
+)
+```
+
+```{r}
+#| label: factor2-trisomy12
+plot_factor(
+  MOFAobject,
+  factors = 2,
+  color_by = "trisomy12",
+  add_violin = TRUE,
+  dodge = TRUE,
+  show_missing = TRUE
+)
+```
+
+```{r}
+#| label: factor2-batch
+plot_factor(
+  MOFAobject,
+  factors = 2,
+  color_by = "RNAseq_batch",
+  add_violin = TRUE,
+  dodge = TRUE,
+  show_missing = TRUE
+)
+```
+
+## Factor 2 feature weights
+
+```{r}
+#| label: factor2-mutation-top-weights
+plot_top_weights(
+  MOFAobject,
+  view = "Mutations",
+  factor = 2,
+  nfeatures = 10,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: factor2-rna-top-weights
+plot_top_weights(
+  MOFAobject,
+  view = "RNAseq",
+  factor = 2,
+  nfeatures = 15,
+  scale = TRUE
+)
+```
+
+```{r}
+#| label: factor2-drug-top-weights
+plot_top_weights(
+  MOFAobject,
+  view = "DrugResponse",
+  factor = 2,
+  nfeatures = 15,
+  scale = TRUE
+)
+```
+
+::: callout-question
+## Question 7
+
+Provide a short characterization of Factor 3. Which view explains most of the factor? Which metadata variables are associated with it? Which features have the strongest weights?
+:::
+
+# Inspection of combinations of factors
+
+A two-dimensional factor plot can reveal patient subgroups or gradients. Here we combine Factor 1 and Factor 2 and color or shape samples by known genomic markers.
+
+```{r}
+#| label: factor12-combined
+plot_factors(
+  MOFAobject,
+  factors = c(1, 2),
+  color_by = "IGHV",
+  shape_by = "trisomy12",
+  dot_size = 2.5,
+  show_missing = TRUE
+)
+```
+
+::: callout-question
+## Question 8
+
+Why can a two-factor plot be useful for personalized medicine or patient stratification?
+:::
+
+# Gene set enrichment analysis
+
+In addition to exploring the individual weights for each factor, we can use enrichment analysis to look for significant associations of factors to genesets. Here, we use the Reactome genesets for illustrations, which is stored in the "day2" folder. If you are not familiar with Gene Set Enrichment Analysis, we encourage the you to read the [GSEA vignette](https://raw.githack.com/bioFAM/MOFA2/master/MOFA2/vignettes/GSEA.html). The lecture on day 4 will also give more information on this topic.
+
+## Load Reactome gene set annotations.
+
+Gene set annotations are provided as a binary membership matrix, with genes in the rows, pathways in the columns. A value of 1 indicates that the corresponding gene belongs to the corresponding pathway.
+
+```{r}
+load("./reactomeGS.rda")
+head(colnames(reactomeGS))
+head(rownames(reactomeGS))
+```
+
+## Run enrichment analysis
+
+These are the steps for doing [Gene Set Enrichment Analysis (GSEA) with MOFA](https://raw.githack.com/bioFAM/MOFA2/master/MOFA2/vignettes/GSEA.html):
+
+- **(1) Define your gene set matrix**: this can be specified as a binary matrix where rows are gene sets and columns are genes. A value of 1 indicates that gene `j` belongs to pathway `i`. A value of 0 indicates elsewise.\
+- **(2) Select a gene set statistic**: the statistic used to quantify the scores at the pathway level. Must be one of the following: `mean.diff` (difference in the average weight between foreground and background genes) or `rank.sum` (difference in the sum of ranks between foreground and background genes).\
+- **(3) Select a statistical test**: the statistical test used to compute the significance of the gene set statistics under a competitive null hypothesis. Must be one of the following: `parametric` (a simple and very liberal parametric t-test), `cor.adj.parametric` (parametric t-test adjusted by the correlation between features), `permutation` (unparametric, the null distribution is created by permuting the weights. This option is computationally expensive, but it preserves the correlation structure between features in the data.).
+
+```{r message=FALSE}
+enrichment.results = run_enrichment(
+  object = MOFAobject, 
+  view = "RNAseq",
+  feature.sets = reactomeGS, 
+  set.statistic = "mean.diff",
+  statistical.test = "parametric"
+)
+```
+
+The enrichment analysis returns a list of 5 elements:
+
+- **feature.sets**: the feature set matrix filtered by the genes that overlap with the MOFA model.\
+- **pval**: the nominal p-values.\
+- **pval.adj**: the FDR-adjusted p-values.\
+- **feature.statistics**: the feature statistics (i.e. the weights).\
+- **set.statistics**: matrices with the gene set statistics.\
+- **sigPathways**: list with significant pathways per factor at a specified FDR threshold
+
+```{r}
+names(enrichment.results)
+```
+
+## Plot enrichment analysis results
+
+```{r}
+plot_enrichment_heatmap(enrichment.results)
+```
+
+## Plot enrichment result for Factor 1
+
+```{r}
+plot_enrichment(enrichment.results, factor =1, alpha=0.1, max.pathways = 25)
+```
+
+## Plot enrichment result for Factor 3
+
+```{r}
+plot_enrichment(enrichment.results, factor =3, alpha=0.1, max.pathways = 25)
+```
+
+::: callout-question
+## Question 9
+
+Based on the enrichment, what biological process could Factor 3 represent?
+:::
+
+# Customized analysis
+
+For customized exploration, we can directly extract factor values and feature weights from the MOFA object.
+
+## Extract factor values
+
+```{r}
+#| label: extract-factors
+factors_long <- get_factors(
+  MOFAobject,
+  factors = "all",
+  as.data.frame = TRUE
+)
+
+head(factors_long) |> kable()
+```
+
+```{r}
+#| label: extract-factors-wide
+factors_wide <- get_factors(MOFAobject, factors = "all")[[1]] |>
+  as.data.frame()
+
+factors_wide$sample <- rownames(factors_wide)
+
+head(factors_wide) |> kable()
+```
+
+## Extract feature weights
+
+```{r}
+#| label: extract-weights
+weights_long <- get_weights(
+  MOFAobject,
+  views = "all",
+  factors = "all",
+  as.data.frame = TRUE
+)
+
+head(weights_long) |> kable()
+```
+
+## Make a custom plot of factor values
+
+```{r}
+#| label: custom-factor-plot
+factor_metadata <- factors_wide |>
+  left_join(CLL_metadata, by = "sample")
+
+ggplot(factor_metadata, aes(x = Factor1, y = Factor2, color = IGHV, shape = trisomy12)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  theme_bw() +
+  labs(
+    title = "Custom factor plot",
+    x = "Factor 1",
+    y = "Factor 2"
+  )
+```
+
+# Association with clinical outcome
+
+MOFA factors can be related to clinical outcomes such as time to treatment or survival. Here we use a Cox proportional hazards model for time to next treatment.
+
+In this example:
+
+- `TTT` is time to next treatment.
+- `treatedAfter` indicates whether treatment occurred after sampling.
+
+```{r}
+#| label: survival-packages
+if (!requireNamespace("survival", quietly = TRUE)) {
+  message("The survival package is not installed. Install it if you want to run this section.")
+}
+```
+
+```{r}
+#| label: cox-model
+#| eval: !expr requireNamespace("survival", quietly = TRUE)
+library(survival)
+
+clinical_factor_df <- factors_wide |>
+  left_join(CLL_metadata |> select(sample, TTT, treatedAfter), by = "sample") |>
+  filter(!is.na(TTT), !is.na(treatedAfter))
+
+SurvObject <- Surv(clinical_factor_df$TTT, clinical_factor_df$treatedAfter)
+
+factor_matrix_for_cox <- clinical_factor_df |>
+  select(starts_with("Factor")) |>
+  as.matrix()
+
+fit <- coxph(SurvObject ~ factor_matrix_for_cox)
+fit
+```
+
+## Plot hazard ratios
+
+```{r}
+#| label: plot-hazard-ratios
+#| eval: !expr requireNamespace("survival", quietly = TRUE)
+s <- summary(fit)
+coef_table <- s[["coefficients"]]
+conf_table <- s[["conf.int"]]
+
+cox_results <- data.frame(
+  factor = rownames(coef_table),
+  p = coef_table[, "Pr(>|z|)"],
+  hazard_ratio = conf_table[, "exp(coef)"],
+  lower = conf_table[, "lower .95"],
+  upper = conf_table[, "upper .95"]
+)
+
+cox_results$factor <- factor(cox_results$factor, levels = rev(cox_results$factor))
+
+ggplot(cox_results, aes(x = factor, y = hazard_ratio, ymin = lower, ymax = upper, color = p < 0.05)) +
+  geom_pointrange() +
+  coord_flip() +
+  geom_hline(yintercept = 1, linetype = "dotted") +
+  theme_bw() +
+  labs(
+    x = "",
+    y = "Hazard ratio",
+    color = "p < 0.05"
+  )
+```
+
+::: callout-question
+## Question 10
+
+Which factors are associated with time to next treatment? How would you interpret a hazard ratio above 1 or below 1?
+
+## Question 11
+
+Can you perform some characterization of the factors associated with Time to Treatment. What can you find?
+:::
+
+# Summary exercise
+
+Work in pairs or small groups. Choose one factor and prepare a short interpretation using the following structure:
+
+1.  Which views does the factor explain?
+2.  Which metadata variables are associated with the factor?
+3.  Which features have the strongest positive and negative weights?
+4.  Is the factor biological, technical, or ambiguous?
+5.  What additional analysis would you perform to validate your interpretation?
+
+# Suggested answers to questions
+
+These answers are intended as guidance. Exact results may vary slightly depending on preprocessing choices, selected features, model settings, and random seed.
+
+## Question 1
+
+The mutation view should use a Bernoulli likelihood because mutation status is binary: each event is usually encoded as 0 or 1. RNA-seq VST values, methylation M-values, and drug response values are continuous, so a Gaussian likelihood is a reasonable default for this practical.
+
+## Question 2
+
+Grey lines indicate missing omic data for a certain sample. MOFA will ignore the missing values in the inference, and therefore implicitly assums a "missing at random" mechanism.
+
+## Question 3
+
+Factors that explain variance in several views may represent shared biological variation across molecular layers. Factors that explain variance in only one view may represent view-specific biology or technical effects. To choose one view for future profiling, inspect the total variance explained plot and identify the view that captures the largest number of factors. In CLL-like multi-omics data, RNA-seq often captures many biological signals, but drug response can also be highly informative if the goal is functional treatment response.
+
+## Question 4
+
+A factor associated with IGHV or trisomy 12 is likely to reflect known CLL biology. A factor associated primarily with RNA-seq batch may reflect technical variation. If a factor is associated with both a biological variable and a batch variable, interpretation requires caution because biology and technical effects may be confounded.
+
+## Question 5
+
+If Factor 1 separates samples by IGHV or another known genomic marker and is not strongly associated with RNA-seq batch, it is likely to represent a biological signal. If it is mainly associated with batch, sequencing quality, or missingness, it may be technical. If both are present, the factor may contain mixed signal and should be interpreted carefully. Based on the plots, Factor 1 most likely represents IGHV signature.
+
+## Question 6
+
+High-weight features should show clear trends along the factor axis. A feature with a positive weight should generally have higher values in samples with positive factor values, while a feature with a negative weight should generally have higher values in samples with negative factor values. Consistency across RNA-seq, methylation, and drug response strengthens the interpretation of the factor.
+
+## Question 7
+
+A good characterization of Factor 3 should include: the views where Factor 3 explains substantial variance, the metadata variables associated with Factor 3, and the strongest positive and negative features.
+
+## Question 8
+
+A two-factor plot can reveal patient subgroups that are not obvious from one molecular layer alone. This is useful for personalized medicine because different regions of the factor space may correspond to different biological mechanisms, genomic lesions, or drug response patterns.
+
+## Question 9
+
+Factor 3 most likely represent a stree-response signature.
+
+## Question 10
+
+Factors with small p-values in the Cox model are associated with time to next treatment. A hazard ratio above 1 means that higher factor values are associated with increased hazard of treatment, whereas a hazard ratio below 1 means that higher factor values are associated with lower hazard. The interpretation depends on the direction of the factor and should be linked back to metadata and feature weights.
+
+## Question 11
+
+Hint: check the feature loadings on those factors. Enrichment analysis can also be very helpful.
+
+# Session info
+
+```{r}
+#| label: session-info
+sessionInfo()
+```

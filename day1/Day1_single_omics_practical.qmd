@@ -60,6 +60,7 @@ The matrix-like omics tables contain feature identifiers in the first column, fo
 
 ## Load packages
 
+
 Setup global environment for Quarto
 
 ```{r}
