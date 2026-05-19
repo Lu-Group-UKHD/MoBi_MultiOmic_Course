@@ -48,3 +48,27 @@ __pycache__/
 *.h5
 *.rda
 *.rds
+
+# Python environments
+.venv/
+**/.venv/
+
+# Python/Jupyter caches
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# Large generated data/results
+*.h5mu
+*.h5
+*.rda
+*.rds
+
+# Raw/private day3 data
+day3/04_cite_seq_application/data/GSE185381_RAW/
+day3/04_cite_seq_application/data/*artifactdb/
+day3/03_cite_seq/results/
+day3/03_cite_seq/notebooks/results/
+day3/03_cite_seq/models/
+day3/03_cite_seq/notebooks/models/
+*.h5ad
