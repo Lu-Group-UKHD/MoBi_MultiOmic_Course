@@ -233,6 +233,8 @@ We will mainly use **Google Colab** to keep the setup lightweight. As a backup, 
 
 <https://www.anaconda.com/docs/getting-started/miniconda/install/overview>
 
+You can find everything we need for the day here: https://drive.google.com/drive/folders/1EI9_uoCQ7AIdq8X-c3r9RPDSApxY0NRY?usp=sharing
+
 ---
 
 ## Final assignment
